@@ -29,6 +29,9 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private Role role = Role.USER;
 
+    @Enumerated(EnumType.STRING)
+    private UserStatus status = UserStatus.PENDING;
+
     // 以下是 UserDetails 接口需要实现的方法，用于 Spring Security
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -42,5 +45,5 @@ public class User implements UserDetails {
     @Override
     public boolean isCredentialsNonExpired() { return true; }
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() { return status == UserStatus.ACTIVE; }
 }
