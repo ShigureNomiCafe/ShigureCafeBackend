@@ -4,7 +4,9 @@ import cafe.shigure.UserService.dto.UserResponse;
 import cafe.shigure.UserService.model.User;
 import cafe.shigure.UserService.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -43,7 +45,10 @@ public class UserManagementController {
     }
 
     @PutMapping("/{id}/password")
-    public ResponseEntity<String> changePassword(@PathVariable Long id, @RequestBody ChangePasswordRequest request) {
+    public ResponseEntity<String> changePassword(@PathVariable Long id, @RequestBody ChangePasswordRequest request, @AuthenticationPrincipal User currentUser) {
+        if (!currentUser.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You can only change your own password");
+        }
         userService.changePassword(id, request.oldPassword(), request.newPassword());
         return ResponseEntity.ok("Password changed successfully");
     }
