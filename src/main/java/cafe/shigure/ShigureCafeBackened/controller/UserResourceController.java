@@ -121,11 +121,21 @@ public class UserResourceController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/{username}/2fa")
+    public ResponseEntity<Void> toggleTwoFactor(@PathVariable String username, @RequestBody ToggleTwoFactorRequest request, @AuthenticationPrincipal User currentUser) {
+        if (!currentUser.getUsername().equals(username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        userService.toggleTwoFactor(currentUser.getId(), request.enabled());
+        return ResponseEntity.ok().build();
+    }
+
     private UserResponse mapToUserResponse(User user) {
-        return new UserResponse(user.getUsername(), user.getNickname(), user.getEmail(), user.getRole(), user.getStatus());
+        return new UserResponse(user.getUsername(), user.getNickname(), user.getEmail(), user.getRole(), user.getStatus(), user.isTwoFactorEnabled());
     }
 
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
     public record ChangeRoleRequest(Role role) {}
     public record UpdateNicknameRequest(String nickname) {}
+    public record ToggleTwoFactorRequest(boolean enabled) {}
 }

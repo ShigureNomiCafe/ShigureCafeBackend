@@ -20,6 +20,17 @@ public class AuthController {
         return ResponseEntity.ok(userService.login(request));
     }
 
+    @PostMapping("/2fa/verify")
+    public ResponseEntity<AuthResponse> verify2FA(@RequestBody TwoFactorRequest request) {
+        return ResponseEntity.ok(userService.verify2FA(request.username(), request.code()));
+    }
+
+    @PostMapping("/password-reset")
+    public ResponseEntity<Void> resetPassword(@RequestBody cafe.shigure.ShigureCafeBackened.dto.ResetPasswordRequest request) {
+        userService.resetPasswordByEmail(request);
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/token")
     public ResponseEntity<Void> logout(HttpServletRequest request) {
         userService.logout(request.getHeader("Authorization"));
@@ -33,4 +44,5 @@ public class AuthController {
     }
 
     public record EmailRequest(String email, String type) {}
+    public record TwoFactorRequest(String username, String code) {}
 }

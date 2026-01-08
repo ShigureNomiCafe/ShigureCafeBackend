@@ -46,7 +46,7 @@ public class UserService {
             if (userRepository.findByEmail(email).isPresent()) {
                 throw new BusinessException("EMAIL_IN_USE");
             }
-        } else if ("RESET_PASSWORD".equalsIgnoreCase(type)) {
+        } else if ("RESET_PASSWORD".equalsIgnoreCase(type) || "2FA".equalsIgnoreCase(type)) {
             if (userRepository.findByEmail(email).isEmpty()) {
                 throw new BusinessException("USER_NOT_FOUND");
             }
@@ -96,8 +96,32 @@ public class UserService {
             throw new BusinessException("ACCOUNT_INACTIVE");
         }
 
+        if (user.isTwoFactorEnabled()) {
+            return new AuthResponse(null, true, user.getEmail());
+        }
+
         var jwtToken = jwtService.generateToken(user);
         return new AuthResponse(jwtToken);
+    }
+
+    @Transactional
+    public AuthResponse verify2FA(String username, String code) {
+        var user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+
+        verifyCode(user.getEmail(), code);
+
+        var jwtToken = jwtService.generateToken(user);
+        return new AuthResponse(jwtToken);
+    }
+
+    @Transactional
+    public void toggleTwoFactor(Long id, boolean enabled) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+        user.setTwoFactorEnabled(enabled);
+        userRepository.save(user);
     }
 
     public void logout(String token) {

@@ -32,7 +32,7 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/token", "/api/v1/auth/verification-codes", "/api/v1/auth/password-reset").permitAll()
+                .requestMatchers("/api/v1/auth/token", "/api/v1/auth/2fa/verify", "/api/v1/auth/verification-codes", "/api/v1/auth/password-reset").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/registrations").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/registrations").hasAuthority("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/registrations/**").permitAll()
