@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>cafe.shigure</groupId>
-	<artifactId>UserService</artifactId>
+	<artifactId>ShigureCafeBackened</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>UserService</name>
-	<description>Server whitelist user management</description>
+	<name>ShigureCafeBackened</name>
+	<description>Shigure Cafe Backend Service</description>
 	<url/>
 	<licenses>
 		<license/>
