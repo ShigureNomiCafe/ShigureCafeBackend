@@ -27,6 +27,15 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import dev.samstevens.totp.code.CodeVerifier;
+import dev.samstevens.totp.code.DefaultCodeGenerator;
+import dev.samstevens.totp.code.DefaultCodeVerifier;
+import dev.samstevens.totp.code.HashingAlgorithm;
+import dev.samstevens.totp.qr.QrData;
+import dev.samstevens.totp.secret.DefaultSecretGenerator;
+import dev.samstevens.totp.secret.SecretGenerator;
+import dev.samstevens.totp.time.SystemTimeProvider;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -39,6 +48,12 @@ public class UserService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final cafe.shigure.ShigureCafeBackened.repository.TokenBlacklistRepository tokenBlacklistRepository;
+
+    private final SecretGenerator totpSecretGenerator = new DefaultSecretGenerator();
+    private final CodeVerifier totpVerifier = new DefaultCodeVerifier(
+            new DefaultCodeGenerator(),
+            new SystemTimeProvider()
+    );
 
     @Transactional
     public void sendVerificationCode(String email, String type) {
@@ -96,8 +111,8 @@ public class UserService {
             throw new BusinessException("ACCOUNT_INACTIVE");
         }
 
-        if (user.isTwoFactorEnabled()) {
-            return new AuthResponse(null, true, user.getEmail());
+        if (user.isEmail2faEnabled() || user.getTotpSecret() != null) {
+            return new AuthResponse(null, true, user.getTotpSecret() != null, user.isEmail2faEnabled(), user.getEmail());
         }
 
         var jwtToken = jwtService.generateToken(user);
@@ -110,17 +125,78 @@ public class UserService {
                 .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
 
-        verifyCode(user.getEmail(), code);
+        boolean verified = false;
+        if (user.getTotpSecret() != null) {
+            if (totpVerifier.isValidCode(user.getTotpSecret(), code)) {
+                verified = true;
+            }
+        }
+        
+        if (!verified && user.isEmail2faEnabled()) {
+            verifyCode(user.getEmail(), code);
+            verified = true;
+        }
+
+        if (!verified) {
+            throw new BusinessException("INVALID_2FA_CODE");
+        }
 
         var jwtToken = jwtService.generateToken(user);
         return new AuthResponse(jwtToken);
     }
 
+    public TotpSetupResponse setupTotp(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+        
+        String secret = totpSecretGenerator.generate();
+        
+        QrData data = new QrData.Builder()
+                .label(user.getEmail())
+                .secret(secret)
+                .issuer("ShigureCafe")
+                .algorithm(HashingAlgorithm.SHA1)
+                .digits(6)
+                .period(30)
+                .build();
+        
+        return new TotpSetupResponse(secret, data.getUri());
+    }
+
+    public record TotpSetupResponse(String secret, String uri) {}
+
     @Transactional
-    public void toggleTwoFactor(Long id, boolean enabled) {
+    public void confirmTotp(Long userId, String secret, String code) {
+        if (!totpVerifier.isValidCode(secret, code)) {
+            throw new BusinessException("INVALID_2FA_CODE");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+        user.setTotpSecret(secret);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void disableTotp(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+        user.setTotpSecret(null);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void toggleTwoFactor(Long id, boolean enabled, String code) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
-        user.setTwoFactorEnabled(enabled);
+        
+        if (enabled) {
+            if (code == null || code.isBlank()) {
+                throw new BusinessException("VERIFICATION_CODE_REQUIRED");
+            }
+            verifyCode(user.getEmail(), code);
+        }
+        
+        user.setEmail2faEnabled(enabled);
         userRepository.save(user);
     }
 

@@ -126,16 +126,43 @@ public class UserResourceController {
         if (!currentUser.getUsername().equals(username)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        userService.toggleTwoFactor(currentUser.getId(), request.enabled());
+        userService.toggleTwoFactor(currentUser.getId(), request.enabled(), request.code());
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{username}/2fa/totp/setup")
+    public ResponseEntity<UserService.TotpSetupResponse> setupTotp(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
+        if (!currentUser.getUsername().equals(username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(userService.setupTotp(currentUser.getId()));
+    }
+
+    @PostMapping("/{username}/2fa/totp/confirm")
+    public ResponseEntity<Void> confirmTotp(@PathVariable String username, @RequestBody ConfirmTotpRequest request, @AuthenticationPrincipal User currentUser) {
+        if (!currentUser.getUsername().equals(username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        userService.confirmTotp(currentUser.getId(), request.secret(), request.code());
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{username}/2fa/totp")
+    public ResponseEntity<Void> disableTotp(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
+        if (!currentUser.getUsername().equals(username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        userService.disableTotp(currentUser.getId());
         return ResponseEntity.ok().build();
     }
 
     private UserResponse mapToUserResponse(User user) {
-        return new UserResponse(user.getUsername(), user.getNickname(), user.getEmail(), user.getRole(), user.getStatus(), user.isTwoFactorEnabled());
+        return new UserResponse(user.getUsername(), user.getNickname(), user.getEmail(), user.getRole(), user.getStatus(), user.isEmail2faEnabled(), user.getTotpSecret() != null);
     }
 
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
     public record ChangeRoleRequest(Role role) {}
     public record UpdateNicknameRequest(String nickname) {}
-    public record ToggleTwoFactorRequest(boolean enabled) {}
+    public record ToggleTwoFactorRequest(boolean enabled, String code) {}
+    public record ConfirmTotpRequest(String secret, String code) {}
 }

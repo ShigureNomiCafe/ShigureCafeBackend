@@ -35,7 +35,9 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private UserStatus status = UserStatus.PENDING;
 
-    private boolean twoFactorEnabled = false;
+    private boolean email2faEnabled = false;
+
+    private String totpSecret;
 
     // 以下是 UserDetails 接口需要实现的方法，用于 Spring Security
     @Override
