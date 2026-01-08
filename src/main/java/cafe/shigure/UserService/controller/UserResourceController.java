@@ -62,7 +62,10 @@ public class UserResourceController {
     }
 
     @DeleteMapping("/{username}")
-    public ResponseEntity<Void> deleteUser(@PathVariable String username) {
+    public ResponseEntity<Void> deleteUser(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
+        if (currentUser.getUsername().equals(username)) {
+            throw new cafe.shigure.UserService.exception.BusinessException("You cannot delete yourself");
+        }
         User user = userService.getUserByUsername(username);
         userService.deleteUser(user.getId());
         return ResponseEntity.noContent().build();
