@@ -1,5 +1,6 @@
 package cafe.shigure.UserService.service;
 
+import cafe.shigure.UserService.dto.AuditResponse;
 import cafe.shigure.UserService.dto.AuthResponse;
 import cafe.shigure.UserService.dto.LoginRequest;
 import cafe.shigure.UserService.dto.RegisterRequest;
@@ -21,9 +22,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -186,6 +189,36 @@ public class UserService {
         UserAudit audit = userAuditRepository.findByAuditCode(auditCode)
                 .orElseThrow(() -> new BusinessException("Invalid audit code"));
         return audit.getUser();
+    }
+
+    public List<AuditResponse> getPendingAudits() {
+        return userAuditRepository.findAll().stream()
+                .map(audit -> new AuditResponse(
+                        audit.getUser().getId(),
+                        audit.getUser().getUsername(),
+                        audit.getUser().getEmail(),
+                        audit.getUser().getStatus(),
+                        audit.getAuditCode(),
+                        audit.isExpired()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void approveAudit(Long auditId) {
+        UserAudit audit = userAuditRepository.findById(auditId)
+                .orElseThrow(() -> new BusinessException("Audit record not found"));
+
+        User user = audit.getUser();
+        if (user.getStatus() == UserStatus.ACTIVE) {
+            // Already active, maybe just clean up the audit record if it still exists
+            userAuditRepository.delete(audit);
+            return;
+        }
+        
+        user.setStatus(UserStatus.ACTIVE);
+        userRepository.save(user);
+        userAuditRepository.delete(audit);
     }
 
     @Transactional

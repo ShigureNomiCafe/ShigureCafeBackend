@@ -1,5 +1,6 @@
 package cafe.shigure.UserService.controller;
 
+import cafe.shigure.UserService.dto.AuditResponse;
 import cafe.shigure.UserService.dto.UserResponse;
 import cafe.shigure.UserService.model.Role;
 import cafe.shigure.UserService.model.User;
@@ -19,6 +20,23 @@ import java.util.List;
 public class UserResourceController {
 
     private final UserService userService;
+
+    @GetMapping("/audits")
+    public ResponseEntity<List<AuditResponse>> getAudits(@AuthenticationPrincipal User currentUser) {
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(userService.getPendingAudits());
+    }
+
+    @PostMapping("/audits/{id}/approve")
+    public ResponseEntity<Void> approveAudit(@PathVariable Long id, @AuthenticationPrincipal User currentUser) {
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        userService.approveAudit(id);
+        return ResponseEntity.ok().build();
+    }
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> getUsers(@RequestParam(required = false) String username) {
