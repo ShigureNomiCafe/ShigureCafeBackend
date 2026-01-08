@@ -112,7 +112,7 @@ public class UserResourceController {
     }
 
     private UserResponse mapToUserResponse(User user) {
-        return new UserResponse(user.getUsername(), user.getEmail(), user.getRole());
+        return new UserResponse(user.getUsername(), user.getEmail(), user.getRole(), user.getStatus());
     }
 
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}

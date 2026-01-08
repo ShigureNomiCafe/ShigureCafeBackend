@@ -56,9 +56,16 @@ public class UserService {
         // 保存或更新验证码
         VerificationCode verificationCode = verificationCodeRepository.findByEmail(email)
                 .orElse(new VerificationCode());
+
+        if (verificationCode.getLastSentTime() != null &&
+                verificationCode.getLastSentTime().plusSeconds(60).isAfter(LocalDateTime.now())) {
+            throw new BusinessException("操作过于频繁，请60秒后再试");
+        }
+
         verificationCode.setEmail(email);
         verificationCode.setCode(code);
         verificationCode.setExpiryDate(java.time.LocalDateTime.now().plusMinutes(5)); // 5分钟有效
+        verificationCode.setLastSentTime(LocalDateTime.now());
 
         verificationCodeRepository.save(verificationCode);
 
@@ -77,6 +84,12 @@ public class UserService {
                 .or(() -> userRepository.findByEmail(request.getUsername()))
                 .orElseThrow(() -> new BusinessException("用户不存在"));
         
+        if (user.getStatus() == UserStatus.PENDING) {
+            throw new BusinessException("账号审核中，请稍后");
+        }
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new BusinessException("账号被封禁，请联系管理员");
+        }
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new BusinessException("账号状态异常，请联系管理员");
         }

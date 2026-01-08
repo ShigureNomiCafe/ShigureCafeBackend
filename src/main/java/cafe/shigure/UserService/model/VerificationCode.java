@@ -25,10 +25,14 @@ public class VerificationCode {
     @Column(nullable = false)
     private LocalDateTime expiryDate;
 
+    @Column
+    private LocalDateTime lastSentTime;
+
     public VerificationCode(String email, String code, int expirationMinutes) {
         this.email = email;
         this.code = code;
         this.expiryDate = LocalDateTime.now().plusMinutes(expirationMinutes);
+        this.lastSentTime = LocalDateTime.now();
     }
 
     public boolean isExpired() {
