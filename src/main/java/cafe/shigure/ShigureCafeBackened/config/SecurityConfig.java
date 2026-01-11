@@ -37,6 +37,7 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/registrations").hasAuthority("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/registrations/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/v1/registrations/**").hasAuthority("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/v1/registrations/**").hasAuthority("ADMIN")
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .anyRequest().authenticated()
             )

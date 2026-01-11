@@ -48,4 +48,10 @@ public class RegistrationController {
         userService.approveUser(auditCode);
         return ResponseEntity.ok().build();
     }
+
+    @DeleteMapping("/{auditCode}")
+    public ResponseEntity<Void> banUser(@PathVariable String auditCode) {
+        userService.banUser(auditCode);
+        return ResponseEntity.ok().build();
+    }
 }

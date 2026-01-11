@@ -336,6 +336,19 @@ public class UserService {
         userAuditRepository.delete(audit);
     }
 
+    @Transactional
+    public void banUser(String auditCode) {
+        UserAudit audit = userAuditRepository.findByAuditCode(auditCode)
+                .orElseThrow(() -> new BusinessException("INVALID_AUDIT_CODE"));
+
+        User user = audit.getUser();
+        user.setStatus(UserStatus.BANNED);
+        userRepository.save(user);
+
+        // Remove audit record after banning
+        userAuditRepository.delete(audit);
+    }
+
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id)) {
             throw new BusinessException("USER_NOT_FOUND");
@@ -401,6 +414,14 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         user.setRole(newRole);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void updateStatus(Long id, UserStatus newStatus) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+        user.setStatus(newStatus);
         userRepository.save(user);
     }
 

@@ -107,6 +107,19 @@ public class UserResourceController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/{username}/status")
+    public ResponseEntity<Void> updateStatus(@PathVariable String username, @RequestBody ChangeStatusRequest request, @AuthenticationPrincipal User currentUser) {
+        if (currentUser.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        if (currentUser.getUsername().equals(username) && request.status() == cafe.shigure.ShigureCafeBackened.model.UserStatus.BANNED) {
+            throw new BusinessException("SELF_BAN_PROTECTED");
+        }
+        User targetUser = userService.getUserByUsername(username);
+        userService.updateStatus(targetUser.getId(), request.status());
+        return ResponseEntity.ok().build();
+    }
+
     @PutMapping("/{username}/nickname")
     public ResponseEntity<Void> updateNickname(@PathVariable String username, @RequestBody UpdateNicknameRequest request, @AuthenticationPrincipal User currentUser) {
         boolean isSelf = currentUser.getUsername().equals(username);
@@ -162,6 +175,7 @@ public class UserResourceController {
 
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
     public record ChangeRoleRequest(Role role) {}
+    public record ChangeStatusRequest(cafe.shigure.ShigureCafeBackened.model.UserStatus status) {}
     public record UpdateNicknameRequest(String nickname) {}
     public record ToggleTwoFactorRequest(boolean enabled, String code) {}
     public record ConfirmTotpRequest(String secret, String code) {}
