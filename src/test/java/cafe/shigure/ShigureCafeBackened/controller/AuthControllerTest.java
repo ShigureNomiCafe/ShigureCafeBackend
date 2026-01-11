@@ -5,21 +5,22 @@ import cafe.shigure.ShigureCafeBackened.dto.RegisterRequest;
 import cafe.shigure.ShigureCafeBackened.model.Role;
 import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.model.UserStatus;
-import cafe.shigure.ShigureCafeBackened.model.VerificationCode;
 import cafe.shigure.ShigureCafeBackened.repository.UserRepository;
-import cafe.shigure.ShigureCafeBackened.repository.VerificationCodeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
-
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,9 +37,12 @@ public class AuthControllerTest {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private VerificationCodeRepository verificationCodeRepository;
+    @MockitoBean
+    private StringRedisTemplate redisTemplate;
     
+    @MockitoBean
+    private ValueOperations<String, String> valueOperations;
+
     @Autowired
     private cafe.shigure.ShigureCafeBackened.repository.UserAuditRepository userAuditRepository;
 
@@ -49,7 +53,7 @@ public class AuthControllerTest {
     public void setup() {
         userAuditRepository.deleteAll();
         userRepository.deleteAll();
-        verificationCodeRepository.deleteAll();
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
     @Test
@@ -57,12 +61,9 @@ public class AuthControllerTest {
         String email = "test@example.com";
         String code = "123456";
 
-        // Pre-seed verification code
-        VerificationCode vc = new VerificationCode();
-        vc.setEmail(email);
-        vc.setCode(code);
-        vc.setExpiryDate(LocalDateTime.now().plusMinutes(10));
-        verificationCodeRepository.save(vc);
+        // Mock Redis behavior for verification
+        String codeKey = "verify:code:" + email;
+        when(valueOperations.get(codeKey)).thenReturn(code);
 
         RegisterRequest request = new RegisterRequest();
         request.setUsername("testuser");
@@ -70,10 +71,11 @@ public class AuthControllerTest {
         request.setEmail(email);
         request.setVerificationCode(code);
 
-        mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(post("/api/v1/registrations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.auditCode").exists());
     }
 
     @Test
@@ -91,7 +93,7 @@ public class AuthControllerTest {
         loginRequest.setUsername("loginuser");
         loginRequest.setPassword("password123");
 
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v1/auth/token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
@@ -113,10 +115,11 @@ public class AuthControllerTest {
         loginRequest.setUsername("pendinguser");
         loginRequest.setPassword("password123");
 
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v1/auth/token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isUnauthorized()); // Expecting 401
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("ACCOUNT_PENDING"));
     }
 
     @Test
@@ -135,10 +138,9 @@ public class AuthControllerTest {
         loginRequest.setUsername("activeuser");
         loginRequest.setPassword("wrongpassword");
 
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v1/auth/token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$").value("Authentication failed: Bad credentials"));
+                .andExpect(status().isUnauthorized());
     }
 }

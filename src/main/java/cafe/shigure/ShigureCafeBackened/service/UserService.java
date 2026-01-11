@@ -8,12 +8,11 @@ import cafe.shigure.ShigureCafeBackened.model.Role;
 import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.model.UserAudit;
 import cafe.shigure.ShigureCafeBackened.model.UserStatus;
-import cafe.shigure.ShigureCafeBackened.model.VerificationCode;
 import cafe.shigure.ShigureCafeBackened.repository.UserAuditRepository;
 import cafe.shigure.ShigureCafeBackened.repository.UserRepository;
-import cafe.shigure.ShigureCafeBackened.repository.VerificationCodeRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import dev.samstevens.totp.code.CodeVerifier;
@@ -42,7 +42,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserAuditRepository userAuditRepository;
-    private final VerificationCodeRepository verificationCodeRepository;
+    private final StringRedisTemplate redisTemplate;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final AuthenticationManager authenticationManager;
@@ -71,20 +71,16 @@ public class UserService {
         String code = String.format("%06d", new Random().nextInt(999999));
 
         // 保存或更新验证码
-        VerificationCode verificationCode = verificationCodeRepository.findByEmail(email)
-                .orElse(new VerificationCode());
+        String limitKey = "verify:limit:" + email;
+        String codeKey = "verify:code:" + email;
 
-        if (verificationCode.getLastSentTime() != null &&
-                verificationCode.getLastSentTime().plusSeconds(60).isAfter(LocalDateTime.now())) {
-            throw new BusinessException("RATE_LIMIT_EXCEEDED", java.util.Map.of("retryAfter", 60));
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(limitKey))) {
+            Long expire = redisTemplate.getExpire(limitKey, TimeUnit.SECONDS);
+            throw new BusinessException("RATE_LIMIT_EXCEEDED", java.util.Map.of("retryAfter", expire != null ? expire : 60));
         }
 
-        verificationCode.setEmail(email);
-        verificationCode.setCode(code);
-        verificationCode.setExpiryDate(java.time.LocalDateTime.now().plusMinutes(5)); // 5分钟有效
-        verificationCode.setLastSentTime(LocalDateTime.now());
-
-        verificationCodeRepository.save(verificationCode);
+        redisTemplate.opsForValue().set(codeKey, code, 5, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(limitKey, "1", 60, TimeUnit.SECONDS);
 
         // 发送邮件
         emailService.sendSimpleMessage(email, "猫咖验证码", "您的验证码是：" + code + "，请在5分钟内使用。");
@@ -274,20 +270,19 @@ public class UserService {
     }
     
     private void verifyCode(String email, String code) {
-        // 验证验证码
-        VerificationCode verificationCode = verificationCodeRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException("VERIFICATION_CODE_NOT_FOUND"));
+        String codeKey = "verify:code:" + email;
+        String storedCode = redisTemplate.opsForValue().get(codeKey);
 
-        if (verificationCode.isExpired()) {
-            throw new BusinessException("VERIFICATION_CODE_EXPIRED");
+        if (storedCode == null) {
+            throw new BusinessException("VERIFICATION_CODE_NOT_FOUND");
         }
 
-        if (!verificationCode.getCode().equals(code)) {
+        if (!storedCode.equals(code)) {
             throw new BusinessException("VERIFICATION_CODE_INVALID");
         }
 
         // 验证通过，删除验证码（防止复用）
-        verificationCodeRepository.delete(verificationCode);
+        redisTemplate.delete(codeKey);
     }
     
     public User getUserByAuditCode(String auditCode) {
@@ -450,8 +445,5 @@ public class UserService {
         userRepository.save(user);
     }
 
-    @Scheduled(cron = "0 0 * * * ?")
-    public void cleanupExpiredCodes() {
-        verificationCodeRepository.deleteByExpiryDateBefore(LocalDateTime.now());
-    }
+
 }
