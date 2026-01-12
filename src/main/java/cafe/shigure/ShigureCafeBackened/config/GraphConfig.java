@@ -10,13 +10,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class GraphConfig {
 
-    @Value("${spring.cloud.azure.active-directory.credential.client-id}")
+    @Value("${application.microsoft.mail.client-id}")
     private String clientId;
 
-    @Value("${spring.cloud.azure.active-directory.credential.client-secret}")
+    @Value("${application.microsoft.mail.client-secret}")
     private String clientSecret;
 
-    @Value("${spring.cloud.azure.active-directory.profile.tenant-id}")
+    @Value("${application.microsoft.mail.tenant-id}")
     private String tenantId;
 
     @Bean

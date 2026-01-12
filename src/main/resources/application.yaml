@@ -23,15 +23,15 @@ spring:
       username: ${REDIS_USERNAME:}
       password: ${REDIS_PASSWORD:}
   
-  cloud:
-    azure:
-      active-directory:
-        profile:
-          tenant-id: ${AZURE_TENANT_ID}
-        credential:
-          client-id: ${AZURE_CLIENT_ID}
-          client-secret: ${AZURE_CLIENT_SECRET}
-
 application:
   mail:
     from: noreply@shigure-nomi.shop
+  microsoft:
+    mail:
+      tenant-id: ${MAIL_TENANT_ID:${AZURE_TENANT_ID}}
+      client-id: ${MAIL_CLIENT_ID:${AZURE_CLIENT_ID}}
+      client-secret: ${MAIL_CLIENT_SECRET:${AZURE_CLIENT_SECRET}}
+    minecraft:
+      tenant-id: ${MINECRAFT_TENANT_ID:${AZURE_TENANT_ID}}
+      client-id: ${MINECRAFT_CLIENT_ID:${AZURE_CLIENT_ID}}
+      client-secret: ${MINECRAFT_CLIENT_SECRET:${AZURE_CLIENT_SECRET}}

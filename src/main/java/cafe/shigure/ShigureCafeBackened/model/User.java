@@ -39,6 +39,9 @@ public class User implements UserDetails {
 
     private String totpSecret;
 
+    @Column(unique = true)
+    private String minecraftUuid;
+
     // 以下是 UserDetails 接口需要实现的方法，用于 Spring Security
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

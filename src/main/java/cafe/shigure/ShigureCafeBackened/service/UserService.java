@@ -454,5 +454,13 @@ public class UserService {
         userRepository.save(user);
     }
 
+    @Transactional
+    public void updateMinecraftUuid(Long id, String uuid) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+        user.setMinecraftUuid(uuid);
+        userRepository.save(user);
+    }
+
 
 }

@@ -6,6 +6,7 @@ import cafe.shigure.ShigureCafeBackened.model.Role;
 import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -20,6 +22,13 @@ import java.util.List;
 public class UserResourceController {
 
     private final UserService userService;
+    private final cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService minecraftAuthService;
+
+    @Value("${application.microsoft.minecraft.client-id}")
+    private String microsoftClientId;
+
+    @Value("${application.microsoft.minecraft.tenant-id}")
+    private String microsoftTenantId;
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> getUsers(@RequestParam(required = false) String username) {
@@ -169,6 +178,11 @@ public class UserResourceController {
         return ResponseEntity.ok().build();
     }
 
+    @GetMapping("/config/microsoft-client-id")
+    public ResponseEntity<Map<String, String>> getMicrosoftClientId() {
+        return ResponseEntity.ok(Map.of("clientId", microsoftClientId));
+    }
+
     @DeleteMapping("/{username}/2fa")
     public ResponseEntity<Void> resetTwoFactor(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
         if (currentUser.getRole() != Role.ADMIN) {
@@ -176,6 +190,16 @@ public class UserResourceController {
         }
         User targetUser = userService.getUserByUsername(username);
         userService.resetTwoFactor(targetUser.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{username}/minecraft/bind")
+    public ResponseEntity<Void> bindMinecraft(@PathVariable String username, @RequestBody BindMinecraftRequest request, @AuthenticationPrincipal User currentUser) {
+        if (!currentUser.getUsername().equals(username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        String uuid = minecraftAuthService.getMinecraftUuid(request.code(), request.redirectUri());
+        userService.updateMinecraftUuid(currentUser.getId(), uuid);
         return ResponseEntity.ok().build();
     }
 
@@ -189,7 +213,8 @@ public class UserResourceController {
                 user.getStatus(),
                 user.isEmail2faEnabled() || totpEnabled,
                 user.isEmail2faEnabled(),
-                totpEnabled
+                totpEnabled,
+                user.getMinecraftUuid()
         );
     }
 
@@ -199,4 +224,5 @@ public class UserResourceController {
     public record UpdateNicknameRequest(String nickname) {}
     public record ToggleTwoFactorRequest(boolean enabled, String code) {}
     public record ConfirmTotpRequest(String secret, String code) {}
+    public record BindMinecraftRequest(String code, String redirectUri) {}
 }
