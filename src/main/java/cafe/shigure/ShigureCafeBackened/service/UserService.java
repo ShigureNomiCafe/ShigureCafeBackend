@@ -12,6 +12,10 @@ import cafe.shigure.ShigureCafeBackened.repository.UserAuditRepository;
 import cafe.shigure.ShigureCafeBackened.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -162,6 +166,7 @@ public class UserService {
     public record TotpSetupResponse(String secret, String uri) {}
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void confirmTotp(Long userId, String secret, String code) {
         if (!totpVerifier.isValidCode(secret, code)) {
             throw new BusinessException("INVALID_2FA_CODE");
@@ -173,6 +178,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void disableTotp(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -181,6 +187,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void toggleTwoFactor(Long id, boolean enabled, String code) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -197,6 +204,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void resetTwoFactor(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -214,6 +222,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "audits", allEntries = true)
     public String register(RegisterRequest request) {
         Optional<User> existingUser = userRepository.findByUsername(request.getUsername());
         
@@ -268,6 +277,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void resetPasswordByEmail(cafe.shigure.ShigureCafeBackened.dto.ResetPasswordRequest request) {
         verifyCode(request.getEmail(), request.getVerificationCode());
 
@@ -306,9 +316,20 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    // @Cacheable(value = "audits", key = "#pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort.toString()")
+    public cafe.shigure.ShigureCafeBackened.dto.PagedResponse<cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse> getAuditsPaged(Pageable pageable) {
+        Page<cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse> page = userAuditRepository.findAll(pageable)
+                .map(this::mapToRegistrationDetailsResponse);
+        return cafe.shigure.ShigureCafeBackened.dto.PagedResponse.fromPage(page);
+    }
+
     public cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse getRegistrationDetails(String auditCode) {
         UserAudit audit = userAuditRepository.findByAuditCode(auditCode)
                 .orElseThrow(() -> new BusinessException("INVALID_AUDIT_CODE"));
+        return mapToRegistrationDetailsResponse(audit);
+    }
+
+    public cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse mapToRegistrationDetailsResponse(UserAudit audit) {
         User user = audit.getUser();
         return new cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse(
                 user.getUsername(),
@@ -321,6 +342,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = {"audits", "users"}, allEntries = true)
     public void approveUser(String auditCode) {
         UserAudit audit = userAuditRepository.findByAuditCode(auditCode)
                 .orElseThrow(() -> new BusinessException("INVALID_AUDIT_CODE"));
@@ -341,6 +363,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = {"audits", "users"}, allEntries = true)
     public void banUser(String auditCode) {
         UserAudit audit = userAuditRepository.findByAuditCode(auditCode)
                 .orElseThrow(() -> new BusinessException("INVALID_AUDIT_CODE"));
@@ -353,6 +376,7 @@ public class UserService {
         userAuditRepository.delete(audit);
     }
 
+    @CacheEvict(value = "users", allEntries = true)
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id)) {
             throw new BusinessException("USER_NOT_FOUND");
@@ -360,6 +384,7 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    @CacheEvict(value = "users", allEntries = true)
     public void changePassword(Long id, String oldPassword, String newPassword) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -372,6 +397,7 @@ public class UserService {
         userRepository.save(user);
     }
 
+    @CacheEvict(value = "users", allEntries = true)
     public void resetPassword(Long id, String newPassword) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -380,6 +406,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void updateEmail(Long id, String newEmail, String verificationCode) {
         verifyCode(newEmail, verificationCode);
 
@@ -398,6 +425,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void updateEmailDirectly(Long id, String newEmail) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -414,6 +442,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void updateRole(Long id, Role newRole) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -422,6 +451,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void updateStatus(Long id, UserStatus newStatus) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -433,17 +463,43 @@ public class UserService {
         return userRepository.findAll();
     }
 
+    // @Cacheable(value = "users", key = "#pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort.toString()")
+    public cafe.shigure.ShigureCafeBackened.dto.PagedResponse<cafe.shigure.ShigureCafeBackened.dto.UserResponse> getUsersPaged(Pageable pageable) {
+        Page<cafe.shigure.ShigureCafeBackened.dto.UserResponse> page = userRepository.findAll(pageable)
+                .map(this::mapToUserResponse);
+        return cafe.shigure.ShigureCafeBackened.dto.PagedResponse.fromPage(page);
+    }
+
+    public cafe.shigure.ShigureCafeBackened.dto.UserResponse mapToUserResponse(User user) {
+        boolean totpEnabled = user.getTotpSecret() != null;
+        return new cafe.shigure.ShigureCafeBackened.dto.UserResponse(
+                user.getUsername(),
+                user.getNickname(),
+                user.getEmail(),
+                user.getRole(),
+                user.getStatus(),
+                user.isEmail2faEnabled() || totpEnabled,
+                user.isEmail2faEnabled(),
+                totpEnabled,
+                user.getMinecraftUuid(),
+                user.getMinecraftUsername()
+        );
+    }
+
+    @Cacheable(value = "users", key = "'id-' + #id")
     public User getUserById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
     }
 
+    @Cacheable(value = "users", key = "'username-' + #username")
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void updateNickname(Long id, String nickname) {
         if (nickname != null && nickname.length() > 50) {
             throw new BusinessException("NICKNAME_TOO_LONG", java.util.Map.of("maxLength", 50));
@@ -455,6 +511,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void updateMinecraftInfo(Long id, String uuid, String username) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
@@ -464,6 +521,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public void refreshMinecraftUsername(Long id, cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService minecraftAuthService) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));

@@ -1,5 +1,6 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
+import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
 import cafe.shigure.ShigureCafeBackened.dto.UserResponse;
 import cafe.shigure.ShigureCafeBackened.exception.BusinessException;
 import cafe.shigure.ShigureCafeBackened.model.Role;
@@ -7,6 +8,10 @@ import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,26 +36,35 @@ public class UserResourceController {
     private String microsoftTenantId;
 
     @GetMapping
-    public ResponseEntity<List<UserResponse>> getUsers(@RequestParam(required = false) String username) {
+    public ResponseEntity<?> getUsers(
+            @RequestParam(required = false) String username,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "username") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
+        
         if (username != null && !username.isEmpty()) {
              try {
                  User user = userService.getUserByUsername(username);
-                 return ResponseEntity.ok(Collections.singletonList(mapToUserResponse(user)));
+                 UserResponse response = userService.mapToUserResponse(user);
+                 return ResponseEntity.ok(Collections.singletonList(response));
              } catch (Exception e) {
                  return ResponseEntity.ok(Collections.emptyList());
              }
         }
         
-        List<UserResponse> users = userService.getAllUsers().stream()
-                .map(this::mapToUserResponse)
-                .toList();
-        return ResponseEntity.ok(users);
+        Sort sort = direction.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        PagedResponse<UserResponse> userPage = userService.getUsersPaged(pageable);
+        
+        return ResponseEntity.ok(userPage);
     }
 
     @GetMapping("/{username}")
     public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String username) {
         User user = userService.getUserByUsername(username);
-        return ResponseEntity.ok(mapToUserResponse(user));
+        return ResponseEntity.ok(userService.mapToUserResponse(user));
     }
 
     @DeleteMapping("/{username}")
@@ -215,22 +229,6 @@ public class UserResourceController {
         User targetUser = userService.getUserByUsername(username);
         userService.refreshMinecraftUsername(targetUser.getId(), minecraftAuthService);
         return ResponseEntity.ok().build();
-    }
-
-    private UserResponse mapToUserResponse(User user) {
-        boolean totpEnabled = user.getTotpSecret() != null;
-        return new UserResponse(
-                user.getUsername(),
-                user.getNickname(),
-                user.getEmail(),
-                user.getRole(),
-                user.getStatus(),
-                user.isEmail2faEnabled() || totpEnabled,
-                user.isEmail2faEnabled(),
-                totpEnabled,
-                user.getMinecraftUuid(),
-                user.getMinecraftUsername()
-        );
     }
 
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}

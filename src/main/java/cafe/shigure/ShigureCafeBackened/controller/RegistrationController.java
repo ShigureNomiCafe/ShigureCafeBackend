@@ -1,5 +1,6 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
+import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
 import cafe.shigure.ShigureCafeBackened.dto.RegisterRequest;
 import cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse;
 import cafe.shigure.ShigureCafeBackened.model.Role;
@@ -7,6 +8,10 @@ import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,11 +36,22 @@ public class RegistrationController {
     }
 
     @GetMapping
-    public ResponseEntity<List<String>> getAllRegistrations(@AuthenticationPrincipal User currentUser) {
+    public ResponseEntity<PagedResponse<RegistrationDetailsResponse>> getAllRegistrations(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "expiryDate") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction,
+            @AuthenticationPrincipal User currentUser) {
         if (currentUser == null || currentUser.getRole() != Role.ADMIN) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        return ResponseEntity.ok(userService.getAllAuditCodes());
+        
+        Sort sort = direction.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        PagedResponse<RegistrationDetailsResponse> auditPage = userService.getAuditsPaged(pageable);
+        
+        return ResponseEntity.ok(auditPage);
     }
 
     @GetMapping("/{auditCode}")
