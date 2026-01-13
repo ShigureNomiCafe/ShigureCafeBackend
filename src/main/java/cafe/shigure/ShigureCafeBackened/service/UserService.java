@@ -455,10 +455,23 @@ public class UserService {
     }
 
     @Transactional
-    public void updateMinecraftUuid(Long id, String uuid) {
+    public void updateMinecraftInfo(Long id, String uuid, String username) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         user.setMinecraftUuid(uuid);
+        user.setMinecraftUsername(username);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void refreshMinecraftUsername(Long id, cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService minecraftAuthService) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
+        if (user.getMinecraftUuid() == null) {
+            throw new BusinessException("MINECRAFT_NOT_BOUND");
+        }
+        String currentUsername = minecraftAuthService.getMinecraftUsername(user.getMinecraftUuid());
+        user.setMinecraftUsername(currentUsername);
         userRepository.save(user);
     }
 

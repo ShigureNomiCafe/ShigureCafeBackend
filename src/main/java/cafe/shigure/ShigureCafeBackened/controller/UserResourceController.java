@@ -198,8 +198,22 @@ public class UserResourceController {
         if (!currentUser.getUsername().equals(username)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        String uuid = minecraftAuthService.getMinecraftUuid(request.code(), request.redirectUri());
-        userService.updateMinecraftUuid(currentUser.getId(), uuid);
+        cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService.MinecraftProfile profile = minecraftAuthService.getMinecraftProfile(request.code(), request.redirectUri());
+        userService.updateMinecraftInfo(currentUser.getId(), profile.id(), profile.name());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{username}/minecraft/refresh")
+    public ResponseEntity<Void> refreshMinecraft(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
+        boolean isSelf = currentUser.getUsername().equals(username);
+        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
+
+        if (!isSelf && !isAdmin) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        User targetUser = userService.getUserByUsername(username);
+        userService.refreshMinecraftUsername(targetUser.getId(), minecraftAuthService);
         return ResponseEntity.ok().build();
     }
 
@@ -214,7 +228,8 @@ public class UserResourceController {
                 user.isEmail2faEnabled() || totpEnabled,
                 user.isEmail2faEnabled(),
                 totpEnabled,
-                user.getMinecraftUuid()
+                user.getMinecraftUuid(),
+                user.getMinecraftUsername()
         );
     }
 

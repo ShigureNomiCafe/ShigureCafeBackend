@@ -17,4 +17,5 @@ public class UserResponse {
     private boolean email2faEnabled;
     private boolean totpEnabled;
     private String minecraftUuid;
+    private String minecraftUsername;
 }

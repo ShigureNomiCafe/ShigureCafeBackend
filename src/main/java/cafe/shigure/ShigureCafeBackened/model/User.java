@@ -1,6 +1,7 @@
 package cafe.shigure.ShigureCafeBackened.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -40,8 +41,11 @@ public class User implements UserDetails {
 
     private String totpSecret;
 
-    @Column(unique = true)
+    @Size(min = 32, max = 36)
+    @Column(unique = true, length = 36, columnDefinition = "char(36)")
     private String minecraftUuid;
+
+    private String minecraftUsername;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<NoticeReaction> reactions = new ArrayList<>();

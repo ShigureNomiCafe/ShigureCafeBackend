@@ -29,7 +29,24 @@ public class MinecraftAuthService {
     @Value("${application.microsoft.minecraft.tenant-id}")
     private String tenantId;
 
-    public String getMinecraftUuid(String code, String redirectUri) {
+    public record MinecraftProfile(String id, String name) {}
+
+    public String getMinecraftUsername(String uuid) {
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(
+                    "https://sessionserver.mojang.com/session/minecraft/profile/" + uuid,
+                    Map.class
+            );
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return (String) response.getBody().get("name");
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to fetch Minecraft username for UUID " + uuid + ": " + e.getMessage());
+        }
+        throw new BusinessException("MINECRAFT_PROFILE_FAILED");
+    }
+
+    public MinecraftProfile getMinecraftProfile(String code, String redirectUri) {
         // 1. Exchange code for Microsoft Access Token
         String msAccessToken = getMicrosoftAccessToken(code, redirectUri);
 
@@ -45,7 +62,7 @@ public class MinecraftAuthService {
         String mcAccessToken = getMinecraftAccessToken(xstsToken, uhs);
 
         // 5. Get Minecraft Profile
-        return getMinecraftProfile(mcAccessToken);
+        return fetchMinecraftProfile(mcAccessToken);
     }
 
     private String getMicrosoftAccessToken(String code, String redirectUri) {
@@ -240,7 +257,7 @@ public class MinecraftAuthService {
         throw new BusinessException("MINECRAFT_AUTH_FAILED");
     }
 
-    private String getMinecraftProfile(String mcAccessToken) {
+    private MinecraftProfile fetchMinecraftProfile(String mcAccessToken) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(mcAccessToken);
         headers.set(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -249,7 +266,9 @@ public class MinecraftAuthService {
         try {
             ResponseEntity<Map> response = restTemplate.exchange("https://api.minecraftservices.com/minecraft/profile", HttpMethod.GET, request, Map.class);
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                return (String) response.getBody().get("id");
+                String id = (String) response.getBody().get("id");
+                String name = (String) response.getBody().get("name");
+                return new MinecraftProfile(id, name);
             }
         } catch (org.springframework.web.client.HttpStatusCodeException e) {
             String responseBody = e.getResponseBodyAsString();
