@@ -1,8 +1,6 @@
 package cafe.shigure.ShigureCafeBackened.service;
 
-import cafe.shigure.ShigureCafeBackened.dto.NoticeRequest;
-import cafe.shigure.ShigureCafeBackened.dto.NoticeResponse;
-import cafe.shigure.ShigureCafeBackened.dto.NoticeReactionDTO;
+import cafe.shigure.ShigureCafeBackened.dto.*;
 import cafe.shigure.ShigureCafeBackened.exception.BusinessException;
 import cafe.shigure.ShigureCafeBackened.model.Notice;
 import cafe.shigure.ShigureCafeBackened.model.NoticeReaction;
@@ -13,16 +11,10 @@ import cafe.shigure.ShigureCafeBackened.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.HashMap;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,29 +24,13 @@ public class NoticeService {
     private final NoticeRepository noticeRepository;
     private final UserRepository userRepository;
     private final NoticeReactionRepository noticeReactionRepository;
-    private final StringRedisTemplate redisTemplate;
-
-    private static final String NOTICE_LIST_LAST_UPDATED_KEY = "notice_list:last_updated";
-
-    private void updateGlobalNoticeListTimestamp() {
-        redisTemplate.opsForValue().set(NOTICE_LIST_LAST_UPDATED_KEY, String.valueOf(System.currentTimeMillis()));
-    }
-
-    public Long getGlobalNoticeListTimestamp() {
-        String ts = redisTemplate.opsForValue().get(NOTICE_LIST_LAST_UPDATED_KEY);
-        return ts != null ? Long.parseLong(ts) : 0L;
-    }
+    private final CacheService cacheService;
 
     @Transactional(readOnly = true)
     public PagedResponse<NoticeResponse> getAllNotices(Pageable pageable) {
         Page<NoticeResponse> page = noticeRepository.findAllByOrderByPinnedDescUpdatedAtDesc(pageable)
-                .map(notice -> mapToResponse(notice));
-        Long timestamp = getGlobalNoticeListTimestamp();
-        if (timestamp == 0L) {
-            timestamp = System.currentTimeMillis();
-            updateGlobalNoticeListTimestamp();
-        }
-        return PagedResponse.fromPage(page, timestamp);
+                .map(this::mapToResponse);
+        return PagedResponse.fromPage(page, cacheService.getTimestamp(CacheService.NOTICE_LIST_KEY));
     }
 
     @Transactional(readOnly = true)
@@ -67,10 +43,8 @@ public class NoticeService {
     @Transactional
     public NoticeResponse createNotice(NoticeRequest request, User author) {
         Notice notice = new Notice(request.getTitle(), request.getContent(), request.isPinned(), author);
-        // Force flush to ensure timestamps and ID are generated before mapping to
-        // response
         Notice savedNotice = noticeRepository.saveAndFlush(notice);
-        updateGlobalNoticeListTimestamp();
+        cacheService.updateTimestamp(CacheService.NOTICE_LIST_KEY);
         return mapToResponse(savedNotice);
     }
 
@@ -84,7 +58,7 @@ public class NoticeService {
         notice.setPinned(request.isPinned());
 
         Notice updatedNotice = noticeRepository.saveAndFlush(notice);
-        updateGlobalNoticeListTimestamp();
+        cacheService.updateTimestamp(CacheService.NOTICE_LIST_KEY);
         return mapToResponse(updatedNotice);
     }
 
@@ -94,7 +68,7 @@ public class NoticeService {
             throw new BusinessException("NOTICE_NOT_FOUND");
         }
         noticeRepository.deleteById(id);
-        updateGlobalNoticeListTimestamp();
+        cacheService.updateTimestamp(CacheService.NOTICE_LIST_KEY);
     }
 
     @Transactional
@@ -107,14 +81,12 @@ public class NoticeService {
         if (reactionOpt.isPresent()) {
             noticeReactionRepository.delete(reactionOpt.get());
         } else {
-            // Ensure we use a managed user entity
             User managedUser = userRepository.findById(user.getId())
                     .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
             NoticeReaction reaction = new NoticeReaction(notice, managedUser, emoji);
             noticeReactionRepository.save(reaction);
         }
 
-        // We explicitly do NOT update the notice timestamp here.
         return getReactions(noticeId, user);
     }
 
@@ -124,7 +96,6 @@ public class NoticeService {
                 .orElseThrow(() -> new BusinessException("NOTICE_NOT_FOUND"));
         
         List<NoticeReaction> reactions = noticeReactionRepository.findByNotice(notice);
-
         return mapReactionsToDTO(reactions, currentUser);
     }
 
@@ -137,7 +108,6 @@ public class NoticeService {
         List<Notice> notices = noticeRepository.findAllById(noticeIds);
         List<NoticeReaction> allReactions = noticeReactionRepository.findByNoticeIn(notices);
 
-        // Group reactions by notice ID
         Map<Long, List<NoticeReaction>> reactionsByNotice = allReactions.stream()
                 .collect(Collectors.groupingBy(r -> r.getNotice().getId()));
 

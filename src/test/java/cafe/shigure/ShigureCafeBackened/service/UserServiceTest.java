@@ -43,6 +43,8 @@ class UserServiceTest {
     private JwtService jwtService;
     @Mock
     private TokenBlacklistRepository tokenBlacklistRepository;
+    @Mock
+    private CacheService cacheService;
 
     @InjectMocks
     private UserService userService;

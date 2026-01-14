@@ -38,9 +38,7 @@ class NoticeServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private StringRedisTemplate redisTemplate;
-    @Mock
-    private ValueOperations<String, String> valueOperations;
+    private CacheService cacheService;
 
     @InjectMocks
     private NoticeService noticeService;
@@ -137,10 +135,9 @@ class NoticeServiceTest {
         request.setPinned(false);
 
         when(noticeRepository.saveAndFlush(any(Notice.class))).thenReturn(notice);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
         noticeService.createNotice(request, user);
 
-        verify(valueOperations).set(eq("notice_list:last_updated"), anyString());
+        verify(cacheService).updateTimestamp(CacheService.NOTICE_LIST_KEY);
     }
 }

@@ -2,6 +2,7 @@ package cafe.shigure.ShigureCafeBackened.controller;
 
 import cafe.shigure.ShigureCafeBackened.dto.AuthResponse;
 import cafe.shigure.ShigureCafeBackened.dto.LoginRequest;
+import cafe.shigure.ShigureCafeBackened.dto.ResetPasswordRequest;
 import cafe.shigure.ShigureCafeBackened.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ public class AuthController {
     }
 
     @PostMapping("/password-reset")
-    public ResponseEntity<Void> resetPassword(@RequestBody cafe.shigure.ShigureCafeBackened.dto.ResetPasswordRequest request) {
+    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
         userService.resetPasswordByEmail(request);
         return ResponseEntity.ok().build();
     }

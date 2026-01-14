@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
+
 @Data
 @Entity
 @NoArgsConstructor
@@ -30,15 +32,15 @@ public class UserAudit {
     public UserAudit(User user, String auditCode, int expirationDays) {
         this.user = user;
         this.auditCode = auditCode;
-        this.expiryDate = System.currentTimeMillis() + (long) expirationDays * 24 * 60 * 60 * 1000;
+        this.expiryDate = Instant.now().toEpochMilli() + (long) expirationDays * 24 * 60 * 60 * 1000;
     }
 
     public boolean isExpired() {
-        return System.currentTimeMillis() > expiryDate;
+        return Instant.now().toEpochMilli() > expiryDate;
     }
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = System.currentTimeMillis();
+        this.createdAt = Instant.now().toEpochMilli();
     }
 }

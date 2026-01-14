@@ -1,10 +1,14 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
 import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
+import cafe.shigure.ShigureCafeBackened.dto.UpdateEmailRequest;
 import cafe.shigure.ShigureCafeBackened.dto.UserResponse;
 import cafe.shigure.ShigureCafeBackened.exception.BusinessException;
 import cafe.shigure.ShigureCafeBackened.model.Role;
 import cafe.shigure.ShigureCafeBackened.model.User;
+import cafe.shigure.ShigureCafeBackened.model.UserStatus;
+import cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService;
+import cafe.shigure.ShigureCafeBackened.service.RateLimitService;
 import cafe.shigure.ShigureCafeBackened.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,8 +17,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.Map;
 
 @RestController
@@ -23,17 +29,14 @@ import java.util.Map;
 public class UserResourceController {
 
     private final UserService userService;
-    private final cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService minecraftAuthService;
-    private final cafe.shigure.ShigureCafeBackened.service.RateLimitService rateLimitService;
+    private final MinecraftAuthService minecraftAuthService;
+    private final RateLimitService rateLimitService;
 
     @Value("${application.microsoft.minecraft.client-id}")
     private String microsoftClientId;
 
-    @Value("${application.microsoft.minecraft.tenant-id}")
-    private String microsoftTenantId;
-
     @GetMapping
-    public ResponseEntity<?> getUsers(
+    public ResponseEntity<PagedResponse<UserResponse>> getUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal User currentUser) {
@@ -43,10 +46,7 @@ public class UserResourceController {
         }
         
         Pageable pageable = PageRequest.of(page, size, Sort.by("username").ascending());
-        
-        PagedResponse<UserResponse> userPage = userService.getUsersPaged(pageable);
-        
-        return ResponseEntity.ok(userPage);
+        return ResponseEntity.ok(userService.getUsersPaged(pageable));
     }
 
     @GetMapping("/{username}")
@@ -56,6 +56,7 @@ public class UserResourceController {
     }
 
     @DeleteMapping("/{username}")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
         if (currentUser.getUsername().equals(username)) {
             throw new BusinessException("SELF_DELETION_PROTECTED");
@@ -66,13 +67,12 @@ public class UserResourceController {
     }
 
     @PutMapping("/{username}/password")
-    public ResponseEntity<Void> changePassword(@PathVariable String username, @RequestBody ChangePasswordRequest request, @AuthenticationPrincipal User currentUser) {
-        boolean isSelf = currentUser.getUsername().equals(username);
+    @PreAuthorize("hasAuthority('ADMIN') or #username == authentication.name")
+    public ResponseEntity<Void> changePassword(@PathVariable String username, 
+                                             @RequestBody ChangePasswordRequest request, 
+                                             @AuthenticationPrincipal User currentUser) {
         boolean isAdmin = currentUser.getRole() == Role.ADMIN;
-
-        if (!isSelf && !isAdmin) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        boolean isSelf = currentUser.getUsername().equals(username);
 
         User targetUser = userService.getUserByUsername(username);
         if (isAdmin && !isSelf) {
@@ -84,13 +84,12 @@ public class UserResourceController {
     }
 
     @PutMapping("/{username}/email")
-    public ResponseEntity<Void> updateEmail(@PathVariable String username, @RequestBody cafe.shigure.ShigureCafeBackened.dto.UpdateEmailRequest request, @AuthenticationPrincipal User currentUser) {
-        boolean isSelf = currentUser.getUsername().equals(username);
+    @PreAuthorize("hasAuthority('ADMIN') or #username == authentication.name")
+    public ResponseEntity<Void> updateEmail(@PathVariable String username, 
+                                          @RequestBody UpdateEmailRequest request, 
+                                          @AuthenticationPrincipal User currentUser) {
         boolean isAdmin = currentUser.getRole() == Role.ADMIN;
-
-        if (!isSelf && !isAdmin) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        boolean isSelf = currentUser.getUsername().equals(username);
 
         User targetUser = userService.getUserByUsername(username);
         
@@ -109,21 +108,19 @@ public class UserResourceController {
     }
 
     @PutMapping("/{username}/role")
-    public ResponseEntity<Void> updateRole(@PathVariable String username, @RequestBody ChangeRoleRequest request, @AuthenticationPrincipal User currentUser) {
-        if (currentUser.getRole() != Role.ADMIN) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> updateRole(@PathVariable String username, @RequestBody ChangeRoleRequest request) {
         User targetUser = userService.getUserByUsername(username);
         userService.updateRole(targetUser.getId(), request.role());
         return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{username}/status")
-    public ResponseEntity<Void> updateStatus(@PathVariable String username, @RequestBody ChangeStatusRequest request, @AuthenticationPrincipal User currentUser) {
-        if (currentUser.getRole() != Role.ADMIN) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-        if (currentUser.getUsername().equals(username) && request.status() == cafe.shigure.ShigureCafeBackened.model.UserStatus.BANNED) {
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> updateStatus(@PathVariable String username, 
+                                           @RequestBody ChangeStatusRequest request, 
+                                           @AuthenticationPrincipal User currentUser) {
+        if (currentUser.getUsername().equals(username) && request.status() == UserStatus.BANNED) {
             throw new BusinessException("SELF_BAN_PROTECTED");
         }
         User targetUser = userService.getUserByUsername(username);
@@ -132,50 +129,42 @@ public class UserResourceController {
     }
 
     @PutMapping("/{username}/nickname")
-    public ResponseEntity<Void> updateNickname(@PathVariable String username, @RequestBody UpdateNicknameRequest request, @AuthenticationPrincipal User currentUser) {
-        boolean isSelf = currentUser.getUsername().equals(username);
-        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
-
-        if (!isSelf && !isAdmin) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-
+    @PreAuthorize("hasAuthority('ADMIN') or #username == authentication.name")
+    public ResponseEntity<Void> updateNickname(@PathVariable String username, @RequestBody UpdateNicknameRequest request) {
         User targetUser = userService.getUserByUsername(username);
         userService.updateNickname(targetUser.getId(), request.nickname());
         return ResponseEntity.ok().build();
     }
 
     @PutMapping("/{username}/2fa")
-    public ResponseEntity<Void> toggleTwoFactor(@PathVariable String username, @RequestBody ToggleTwoFactorRequest request, @AuthenticationPrincipal User currentUser) {
-        if (!currentUser.getUsername().equals(username)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+    @PreAuthorize("#username == authentication.name")
+    public ResponseEntity<Void> toggleTwoFactor(@PathVariable String username, 
+                                              @RequestBody ToggleTwoFactorRequest request, 
+                                              @AuthenticationPrincipal User currentUser) {
         userService.toggleTwoFactor(currentUser.getId(), request.enabled(), request.code());
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{username}/2fa/totp/setup")
-    public ResponseEntity<UserService.TotpSetupResponse> setupTotp(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
-        if (!currentUser.getUsername().equals(username)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+    @PreAuthorize("#username == authentication.name")
+    public ResponseEntity<UserService.TotpSetupResponse> setupTotp(@PathVariable String username, 
+                                                                 @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(userService.setupTotp(currentUser.getId()));
     }
 
     @PostMapping("/{username}/2fa/totp/confirm")
-    public ResponseEntity<Void> confirmTotp(@PathVariable String username, @RequestBody ConfirmTotpRequest request, @AuthenticationPrincipal User currentUser) {
-        if (!currentUser.getUsername().equals(username)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+    @PreAuthorize("#username == authentication.name")
+    public ResponseEntity<Void> confirmTotp(@PathVariable String username, 
+                                          @RequestBody ConfirmTotpRequest request, 
+                                          @AuthenticationPrincipal User currentUser) {
         userService.confirmTotp(currentUser.getId(), request.secret(), request.code());
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{username}/2fa/totp")
-    public ResponseEntity<Void> disableTotp(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
-        if (!currentUser.getUsername().equals(username)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+    @PreAuthorize("#username == authentication.name")
+    public ResponseEntity<Void> disableTotp(@PathVariable String username, 
+                                          @AuthenticationPrincipal User currentUser) {
         userService.disableTotp(currentUser.getId());
         return ResponseEntity.ok().build();
     }
@@ -186,34 +175,26 @@ public class UserResourceController {
     }
 
     @DeleteMapping("/{username}/2fa")
-    public ResponseEntity<Void> resetTwoFactor(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
-        if (currentUser.getRole() != Role.ADMIN) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> resetTwoFactor(@PathVariable String username) {
         User targetUser = userService.getUserByUsername(username);
         userService.resetTwoFactor(targetUser.getId());
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{username}/minecraft/bind")
-    public ResponseEntity<Void> bindMinecraft(@PathVariable String username, @RequestBody BindMinecraftRequest request, @AuthenticationPrincipal User currentUser) {
-        if (!currentUser.getUsername().equals(username)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-        cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService.MinecraftProfile profile = minecraftAuthService.getMinecraftProfile(request.code(), request.redirectUri());
+    @PreAuthorize("#username == authentication.name")
+    public ResponseEntity<Void> bindMinecraft(@PathVariable String username, 
+                                            @RequestBody BindMinecraftRequest request, 
+                                            @AuthenticationPrincipal User currentUser) {
+        MinecraftAuthService.MinecraftProfile profile = minecraftAuthService.getMinecraftProfile(request.code(), request.redirectUri());
         userService.updateMinecraftInfo(currentUser.getId(), profile.id(), profile.name());
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{username}/minecraft/refresh")
-    public ResponseEntity<Void> refreshMinecraft(@PathVariable String username, @AuthenticationPrincipal User currentUser) {
-        boolean isSelf = currentUser.getUsername().equals(username);
-        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
-
-        if (!isSelf && !isAdmin) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-
+    @PreAuthorize("hasAuthority('ADMIN') or #username == authentication.name")
+    public ResponseEntity<Void> refreshMinecraft(@PathVariable String username) {
         User targetUser = userService.getUserByUsername(username);
         userService.refreshMinecraftUsername(targetUser.getId(), minecraftAuthService);
         return ResponseEntity.ok().build();
@@ -221,7 +202,7 @@ public class UserResourceController {
 
     public record ChangePasswordRequest(String oldPassword, String newPassword) {}
     public record ChangeRoleRequest(Role role) {}
-    public record ChangeStatusRequest(cafe.shigure.ShigureCafeBackened.model.UserStatus status) {}
+    public record ChangeStatusRequest(UserStatus status) {}
     public record UpdateNicknameRequest(String nickname) {}
     public record ToggleTwoFactorRequest(boolean enabled, String code) {}
     public record ConfirmTotpRequest(String secret, String code) {}

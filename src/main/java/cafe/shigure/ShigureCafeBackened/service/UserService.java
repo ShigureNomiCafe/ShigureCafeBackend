@@ -1,42 +1,29 @@
 package cafe.shigure.ShigureCafeBackened.service;
 
-import cafe.shigure.ShigureCafeBackened.dto.AuthResponse;
-import cafe.shigure.ShigureCafeBackened.dto.LoginRequest;
-import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
-import cafe.shigure.ShigureCafeBackened.dto.RegisterRequest;
-import cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse;
+import cafe.shigure.ShigureCafeBackened.dto.*;
 import cafe.shigure.ShigureCafeBackened.exception.BusinessException;
-import cafe.shigure.ShigureCafeBackened.model.Role;
-import cafe.shigure.ShigureCafeBackened.model.User;
-import cafe.shigure.ShigureCafeBackened.model.UserAudit;
-import cafe.shigure.ShigureCafeBackened.model.UserStatus;
-import cafe.shigure.ShigureCafeBackened.repository.UserAuditRepository;
-import cafe.shigure.ShigureCafeBackened.repository.UserRepository;
+import cafe.shigure.ShigureCafeBackened.model.*;
+import cafe.shigure.ShigureCafeBackened.repository.*;
+import dev.samstevens.totp.code.*;
+import dev.samstevens.totp.qr.QrData;
+import dev.samstevens.totp.secret.DefaultSecretGenerator;
+import dev.samstevens.totp.secret.SecretGenerator;
+import dev.samstevens.totp.time.SystemTimeProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import dev.samstevens.totp.code.CodeVerifier;
-import dev.samstevens.totp.code.DefaultCodeGenerator;
-import dev.samstevens.totp.code.DefaultCodeVerifier;
-import dev.samstevens.totp.code.HashingAlgorithm;
-import dev.samstevens.totp.qr.QrData;
-import dev.samstevens.totp.secret.DefaultSecretGenerator;
-import dev.samstevens.totp.secret.SecretGenerator;
-import dev.samstevens.totp.time.SystemTimeProvider;
 
 @Service
 @RequiredArgsConstructor
@@ -49,33 +36,13 @@ public class UserService {
     private final EmailService emailService;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final cafe.shigure.ShigureCafeBackened.repository.TokenBlacklistRepository tokenBlacklistRepository;
+    private final TokenBlacklistRepository tokenBlacklistRepository;
+    private final CacheService cacheService;
 
     private final SecretGenerator totpSecretGenerator = new DefaultSecretGenerator();
     private final CodeVerifier totpVerifier = new DefaultCodeVerifier(
             new DefaultCodeGenerator(),
             new SystemTimeProvider());
-
-    private static final String USER_LIST_LAST_UPDATED_KEY = "user_list:last_updated";
-    private static final String AUDIT_LIST_LAST_UPDATED_KEY = "audit_list:last_updated";
-
-    private void updateGlobalUserListTimestamp() {
-        redisTemplate.opsForValue().set(USER_LIST_LAST_UPDATED_KEY, String.valueOf(System.currentTimeMillis()));
-    }
-
-    public Long getGlobalUserListTimestamp() {
-        String ts = redisTemplate.opsForValue().get(USER_LIST_LAST_UPDATED_KEY);
-        return ts != null ? Long.parseLong(ts) : 0L;
-    }
-
-    private void updateGlobalAuditListTimestamp() {
-        redisTemplate.opsForValue().set(AUDIT_LIST_LAST_UPDATED_KEY, String.valueOf(System.currentTimeMillis()));
-    }
-
-    public Long getGlobalAuditListTimestamp() {
-        String ts = redisTemplate.opsForValue().get(AUDIT_LIST_LAST_UPDATED_KEY);
-        return ts != null ? Long.parseLong(ts) : 0L;
-    }
 
     @Transactional
     public void sendVerificationCode(String email, String type) {
@@ -89,23 +56,19 @@ public class UserService {
             }
         }
 
-        // 生成 6 位验证码
         String code = String.format("%06d", new Random().nextInt(999999));
-
-        // 保存或更新验证码
         String limitKey = "verify:limit:" + email;
         String codeKey = "verify:code:" + email;
 
         if (Boolean.TRUE.equals(redisTemplate.hasKey(limitKey))) {
             Long expire = redisTemplate.getExpire(limitKey, TimeUnit.SECONDS);
             throw new BusinessException("RATE_LIMIT_EXCEEDED",
-                    java.util.Map.of("retryAfter", expire != null ? expire : 60));
+                    Map.of("retryAfter", expire != null ? expire : 60));
         }
 
         redisTemplate.opsForValue().set(codeKey, code, 5, TimeUnit.MINUTES);
         redisTemplate.opsForValue().set(limitKey, "1", 60, TimeUnit.SECONDS);
 
-        // 发送邮件
         emailService.sendSimpleMessage(email, "猫咖验证码", "您的验证码是：" + code + "，请在5分钟内使用。");
     }
 
@@ -193,7 +156,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         user.setTotpSecret(secret);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     @Transactional
@@ -202,7 +165,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         user.setTotpSecret(null);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     @Transactional
@@ -219,7 +182,7 @@ public class UserService {
 
         user.setEmail2faEnabled(enabled);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     @Transactional
@@ -229,15 +192,14 @@ public class UserService {
         user.setEmail2faEnabled(false);
         user.setTotpSecret(null);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     public void logout(String token) {
         if (token != null && token.startsWith("Bearer ")) {
             String jwt = token.substring(7);
             long expirationDate = jwtService.extractExpiration(jwt);
-            tokenBlacklistRepository
-                    .save(new cafe.shigure.ShigureCafeBackened.model.TokenBlacklist(jwt, expirationDate));
+            tokenBlacklistRepository.save(new TokenBlacklist(jwt, expirationDate));
         }
     }
 
@@ -253,30 +215,25 @@ public class UserService {
             if (user.getStatus() == UserStatus.BANNED) {
                 throw new BusinessException("ACCOUNT_BANNED");
             }
-            // User is PENDING, verify code and refresh audit code
             verifyCode(request.getEmail(), request.getVerificationCode());
 
-            // Check existing audit
             UserAudit audit = userAuditRepository.findByUserId(user.getId())
                     .orElse(new UserAudit(user, UUID.randomUUID().toString(), 7));
 
-            // Always refresh code and expiry if re-registering
             audit.setAuditCode(UUID.randomUUID().toString());
-            audit.setExpiryDate(System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000);
+            audit.setExpiryDate(Instant.now().toEpochMilli() + 7L * 24 * 60 * 60 * 1000);
             userAuditRepository.save(audit);
-            updateGlobalAuditListTimestamp();
+            cacheService.updateTimestamp(CacheService.AUDIT_LIST_KEY);
 
             return audit.getAuditCode();
         }
 
-        // New User
         verifyCode(request.getEmail(), request.getVerificationCode());
 
         if (request.getNickname() != null && request.getNickname().length() > 50) {
-            throw new BusinessException("NICKNAME_TOO_LONG", java.util.Map.of("maxLength", 50));
+            throw new BusinessException("NICKNAME_TOO_LONG", Map.of("maxLength", 50));
         }
 
-        // 创建用户
         User user = new User();
         user.setUsername(request.getUsername());
         user.setNickname(request.getNickname() != null && !request.getNickname().isBlank()
@@ -288,19 +245,18 @@ public class UserService {
         user.setStatus(UserStatus.PENDING);
 
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
 
-        // 生成审核码 (7天有效)
         String auditCode = UUID.randomUUID().toString();
         UserAudit userAudit = new UserAudit(user, auditCode, 7);
         userAuditRepository.save(userAudit);
-        updateGlobalAuditListTimestamp();
+        cacheService.updateTimestamp(CacheService.AUDIT_LIST_KEY);
 
         return auditCode;
     }
 
     @Transactional
-    public void resetPasswordByEmail(cafe.shigure.ShigureCafeBackened.dto.ResetPasswordRequest request) {
+    public void resetPasswordByEmail(ResetPasswordRequest request) {
         verifyCode(request.getEmail(), request.getVerificationCode());
 
         User user = userRepository.findByEmail(request.getEmail())
@@ -322,7 +278,6 @@ public class UserService {
             throw new BusinessException("VERIFICATION_CODE_INVALID");
         }
 
-        // 验证通过，删除验证码（防止复用）
         redisTemplate.delete(codeKey);
     }
 
@@ -338,17 +293,10 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
-    public PagedResponse<RegistrationDetailsResponse> getAuditsPaged(
-            Pageable pageable) {
-        Page<RegistrationDetailsResponse> page = userAuditRepository
-                .findAll(pageable)
+    public PagedResponse<RegistrationDetailsResponse> getAuditsPaged(Pageable pageable) {
+        Page<RegistrationDetailsResponse> page = userAuditRepository.findAll(pageable)
                 .map(this::mapToRegistrationDetailsResponse);
-        Long timestamp = getGlobalAuditListTimestamp();
-        if (timestamp == 0L) {
-            timestamp = System.currentTimeMillis();
-            updateGlobalAuditListTimestamp();
-        }
-        return PagedResponse.fromPage(page, timestamp);
+        return PagedResponse.fromPage(page, cacheService.getTimestamp(CacheService.AUDIT_LIST_KEY));
     }
 
     public RegistrationDetailsResponse getRegistrationDetails(String auditCode) {
@@ -357,8 +305,7 @@ public class UserService {
         return mapToRegistrationDetailsResponse(audit);
     }
 
-    public RegistrationDetailsResponse mapToRegistrationDetailsResponse(
-            UserAudit audit) {
+    public RegistrationDetailsResponse mapToRegistrationDetailsResponse(UserAudit audit) {
         User user = audit.getUser();
         return new RegistrationDetailsResponse(
                 user.getUsername(),
@@ -384,11 +331,10 @@ public class UserService {
         }
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
 
-        // Remove audit record after successful approval
         userAuditRepository.delete(audit);
-        updateGlobalAuditListTimestamp();
+        cacheService.updateTimestamp(CacheService.AUDIT_LIST_KEY);
     }
 
     @Transactional
@@ -399,11 +345,10 @@ public class UserService {
         User user = audit.getUser();
         user.setStatus(UserStatus.BANNED);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
 
-        // Remove audit record after banning
         userAuditRepository.delete(audit);
-        updateGlobalAuditListTimestamp();
+        cacheService.updateTimestamp(CacheService.AUDIT_LIST_KEY);
     }
 
     public void deleteUser(Long id) {
@@ -411,7 +356,7 @@ public class UserService {
             throw new BusinessException("USER_NOT_FOUND");
         }
         userRepository.deleteById(id);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     public void changePassword(Long id, String oldPassword, String newPassword) {
@@ -424,7 +369,6 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        // Password change doesn't necessarily change the list view, but better safe.
     }
 
     public void resetPassword(Long id, String newPassword) {
@@ -437,20 +381,7 @@ public class UserService {
     @Transactional
     public void updateEmail(Long id, String newEmail, String verificationCode) {
         verifyCode(newEmail, verificationCode);
-
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
-
-        // 检查新邮箱是否已被使用 (排除自己)
-        userRepository.findByEmail(newEmail).ifPresent(existingUser -> {
-            if (!existingUser.getId().equals(id)) {
-                throw new BusinessException("EMAIL_IN_USE");
-            }
-        });
-
-        user.setEmail(newEmail);
-        userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        updateEmailDirectly(id, newEmail);
     }
 
     @Transactional
@@ -458,7 +389,6 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
 
-        // Check if new email is already in use (excluding self)
         userRepository.findByEmail(newEmail).ifPresent(existingUser -> {
             if (!existingUser.getId().equals(id)) {
                 throw new BusinessException("EMAIL_IN_USE");
@@ -467,7 +397,7 @@ public class UserService {
 
         user.setEmail(newEmail);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     @Transactional
@@ -476,7 +406,7 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         user.setRole(newRole);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     @Transactional
@@ -485,28 +415,22 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         user.setStatus(newStatus);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
-    public java.util.List<User> getAllUsers() {
-        return userRepository.findAll(org.springframework.data.domain.Sort.by("username"));
+    public List<User> getAllUsers() {
+        return userRepository.findAll(Sort.by("username"));
     }
 
-    public cafe.shigure.ShigureCafeBackened.dto.PagedResponse<cafe.shigure.ShigureCafeBackened.dto.UserResponse> getUsersPaged(
-            Pageable pageable) {
-        Page<cafe.shigure.ShigureCafeBackened.dto.UserResponse> page = userRepository.findAll(pageable)
+    public PagedResponse<UserResponse> getUsersPaged(Pageable pageable) {
+        Page<UserResponse> page = userRepository.findAll(pageable)
                 .map(this::mapToUserResponse);
-        Long timestamp = getGlobalUserListTimestamp();
-        if (timestamp == 0L) {
-            timestamp = System.currentTimeMillis();
-            updateGlobalUserListTimestamp();
-        }
-        return cafe.shigure.ShigureCafeBackened.dto.PagedResponse.fromPage(page, timestamp);
+        return PagedResponse.fromPage(page, cacheService.getTimestamp(CacheService.USER_LIST_KEY));
     }
 
-    public cafe.shigure.ShigureCafeBackened.dto.UserResponse mapToUserResponse(User user) {
+    public UserResponse mapToUserResponse(User user) {
         boolean totpEnabled = user.getTotpSecret() != null;
-        return new cafe.shigure.ShigureCafeBackened.dto.UserResponse(
+        return new UserResponse(
                 user.getUsername(),
                 user.getNickname(),
                 user.getEmail(),
@@ -532,13 +456,13 @@ public class UserService {
     @Transactional
     public void updateNickname(Long id, String nickname) {
         if (nickname != null && nickname.length() > 50) {
-            throw new BusinessException("NICKNAME_TOO_LONG", java.util.Map.of("maxLength", 50));
+            throw new BusinessException("NICKNAME_TOO_LONG", Map.of("maxLength", 50));
         }
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         user.setNickname(nickname);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     @Transactional
@@ -548,12 +472,11 @@ public class UserService {
         user.setMinecraftUuid(uuid);
         user.setMinecraftUsername(username);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
     @Transactional
-    public void refreshMinecraftUsername(Long id,
-            cafe.shigure.ShigureCafeBackened.service.MinecraftAuthService minecraftAuthService) {
+    public void refreshMinecraftUsername(Long id, MinecraftAuthService minecraftAuthService) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND"));
         if (user.getMinecraftUuid() == null) {
@@ -562,7 +485,7 @@ public class UserService {
         String currentUsername = minecraftAuthService.getMinecraftUsername(user.getMinecraftUuid());
         user.setMinecraftUsername(currentUsername);
         userRepository.save(user);
-        updateGlobalUserListTimestamp();
+        cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
 }

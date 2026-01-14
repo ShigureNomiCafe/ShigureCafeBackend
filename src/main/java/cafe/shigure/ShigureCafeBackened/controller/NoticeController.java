@@ -1,11 +1,9 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
-import cafe.shigure.ShigureCafeBackened.dto.NoticeRequest;
-import cafe.shigure.ShigureCafeBackened.dto.NoticeResponse;
-import cafe.shigure.ShigureCafeBackened.dto.NoticeReactionRequest;
-import cafe.shigure.ShigureCafeBackened.dto.NoticeReactionDTO;
+import cafe.shigure.ShigureCafeBackened.dto.*;
 import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.service.NoticeService;
+import cafe.shigure.ShigureCafeBackened.service.RateLimitService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -24,10 +22,10 @@ import java.util.Map;
 public class NoticeController {
 
     private final NoticeService noticeService;
-    private final cafe.shigure.ShigureCafeBackened.service.RateLimitService rateLimitService;
+    private final RateLimitService rateLimitService;
 
     @GetMapping
-    public ResponseEntity<?> getAllNotices(
+    public ResponseEntity<PagedResponse<NoticeResponse>> getAllNotices(
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
         if (currentUser != null) {
