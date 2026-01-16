@@ -38,6 +38,7 @@ public class UserService {
     private final JwtService jwtService;
     private final TokenBlacklistRepository tokenBlacklistRepository;
     private final CacheService cacheService;
+    private final RateLimitService rateLimitService;
 
     private final SecretGenerator totpSecretGenerator = new DefaultSecretGenerator();
     private final CodeVerifier totpVerifier = new DefaultCodeVerifier(
@@ -57,17 +58,11 @@ public class UserService {
         }
 
         String code = String.format("%06d", new Random().nextInt(999999));
-        String limitKey = "verify:limit:" + email;
         String codeKey = "verify:code:" + email;
 
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(limitKey))) {
-            Long expire = redisTemplate.getExpire(limitKey, TimeUnit.SECONDS);
-            throw new BusinessException("RATE_LIMIT_EXCEEDED",
-                    Map.of("retryAfter", expire != null ? expire : 60));
-        }
+        rateLimitService.checkRateLimit("verify:" + email, 60000);
 
         redisTemplate.opsForValue().set(codeKey, code, 5, TimeUnit.MINUTES);
-        redisTemplate.opsForValue().set(limitKey, "1", 60, TimeUnit.SECONDS);
 
         emailService.sendSimpleMessage(email, "猫咖验证码", "您的验证码是：" + code + "，请在5分钟内使用。");
     }

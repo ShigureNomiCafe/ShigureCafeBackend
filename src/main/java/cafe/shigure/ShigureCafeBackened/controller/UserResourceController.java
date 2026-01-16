@@ -1,5 +1,6 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
+import cafe.shigure.ShigureCafeBackened.annotation.RateLimit;
 import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
 import cafe.shigure.ShigureCafeBackened.dto.UpdateEmailRequest;
 import cafe.shigure.ShigureCafeBackened.dto.UserResponse;
@@ -36,14 +37,11 @@ public class UserResourceController {
     private String microsoftClientId;
 
     @GetMapping
+    @RateLimit(key = "users:list", expression = "#currentUser.id", milliseconds = 500)
     public ResponseEntity<PagedResponse<UserResponse>> getUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal User currentUser) {
-        
-        if (currentUser != null) {
-            rateLimitService.checkRateLimit("users:list:" + currentUser.getId(), 1);
-        }
         
         Pageable pageable = PageRequest.of(page, size, Sort.by("username").ascending());
         return ResponseEntity.ok(userService.getUsersPaged(pageable));

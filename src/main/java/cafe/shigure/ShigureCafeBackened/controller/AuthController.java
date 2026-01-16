@@ -1,5 +1,6 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
+import cafe.shigure.ShigureCafeBackened.annotation.RateLimit;
 import cafe.shigure.ShigureCafeBackened.dto.AuthResponse;
 import cafe.shigure.ShigureCafeBackened.dto.LoginRequest;
 import cafe.shigure.ShigureCafeBackened.dto.ResetPasswordRequest;
@@ -17,6 +18,7 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/token")
+    @RateLimit(key = "login", useIp = true, milliseconds = 1000)
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
         return ResponseEntity.ok(userService.login(request));
     }

@@ -1,5 +1,6 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
+import cafe.shigure.ShigureCafeBackened.annotation.RateLimit;
 import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
 import cafe.shigure.ShigureCafeBackened.dto.RegisterRequest;
 import cafe.shigure.ShigureCafeBackened.dto.RegistrationDetailsResponse;
@@ -28,6 +29,7 @@ public class RegistrationController {
     private final RateLimitService rateLimitService;
 
     @PostMapping
+    @RateLimit(key = "register", useIp = true, milliseconds = 5000)
     public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest request) {
         String auditCode = userService.register(request);
         return ResponseEntity.created(URI.create("/api/v1/registrations/" + auditCode))
@@ -36,13 +38,12 @@ public class RegistrationController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('ADMIN')")
+    @RateLimit(key = "audits:list", expression = "#currentUser.id", milliseconds = 500)
     public ResponseEntity<PagedResponse<RegistrationDetailsResponse>> getAllRegistrations(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @AuthenticationPrincipal User currentUser) {
 
-        rateLimitService.checkRateLimit("audits:list:" + currentUser.getId(), 1);
-        
         Pageable pageable = PageRequest.of(page, size, Sort.by("user.username").ascending());
         return ResponseEntity.ok(userService.getAuditsPaged(pageable));
     }

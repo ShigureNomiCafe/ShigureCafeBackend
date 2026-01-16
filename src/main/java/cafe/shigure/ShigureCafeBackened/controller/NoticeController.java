@@ -1,5 +1,6 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
+import cafe.shigure.ShigureCafeBackened.annotation.RateLimit;
 import cafe.shigure.ShigureCafeBackened.dto.*;
 import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.service.NoticeService;
@@ -25,12 +26,10 @@ public class NoticeController {
     private final RateLimitService rateLimitService;
 
     @GetMapping
+    @RateLimit(key = "notices:list", expression = "#currentUser.id", milliseconds = 500)
     public ResponseEntity<PagedResponse<NoticeResponse>> getAllNotices(
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        if (currentUser != null) {
-            rateLimitService.checkRateLimit("notices:list:" + currentUser.getId(), 1);
-        }
         return ResponseEntity.ok(noticeService.getAllNotices(pageable));
     }
 
