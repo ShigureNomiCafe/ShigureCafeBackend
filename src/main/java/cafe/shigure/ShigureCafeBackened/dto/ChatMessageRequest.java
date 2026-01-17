@@ -2,6 +2,7 @@ package cafe.shigure.ShigureCafeBackened.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 
 public record ChatMessageRequest(
     @NotBlank
@@ -9,6 +10,9 @@ public record ChatMessageRequest(
     String name,
 
     @NotBlank
-    String message
+    String message,
+
+    @NotNull
+    Long timestamp
 ) {
 }

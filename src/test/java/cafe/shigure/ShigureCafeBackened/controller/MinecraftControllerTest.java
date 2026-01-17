@@ -53,36 +53,62 @@ public class MinecraftControllerTest {
     }
 
     @Test
-    public void testPushChatMessage() throws Exception {
+    public void testSyncChatMessages() throws Exception {
+        long now = System.currentTimeMillis();
         String json = """
                 {
-                    "name": "TestPlayer",
-                    "message": "Hello, world!"
+                    "messages": [
+                        {
+                            "name": "TestPlayer",
+                            "message": "Hello, world!",
+                            "timestamp": %d
+                        }
+                    ],
+                    "lastTimestamp": 0
                 }
-                """;
+                """.formatted(now);
 
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/minecraft/chat")
+        // First sync: sends a message, should get nothing back (threshold = now)
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/minecraft/message-sync")
                         .header("X-API-KEY", "shigure-cafe-secret-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
 
         org.junit.jupiter.api.Assertions.assertEquals(1, chatMessageRepository.count());
-        cafe.shigure.ShigureCafeBackened.model.ChatMessage saved = chatMessageRepository.findAll().get(0);
-        org.junit.jupiter.api.Assertions.assertEquals("TestPlayer", saved.getName());
-        org.junit.jupiter.api.Assertions.assertEquals("Hello, world!", saved.getMessage());
+
+        // Second sync: empty list, lastTimestamp = now - 1
+        // Should get the message we just sent
+        String json2 = """
+                {
+                    "messages": [],
+                    "lastTimestamp": %d
+                }
+                """.formatted(now - 1);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/minecraft/message-sync")
+                        .header("X-API-KEY", "shigure-cafe-secret-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].name").value("TestPlayer"))
+                .andExpect(jsonPath("$[0].message").value("Hello, world!"))
+                .andExpect(jsonPath("$[0].timestamp").value(now));
     }
 
     @Test
-    public void testPushChatMessageInvalidApiKey() throws Exception {
+    public void testSyncChatMessagesInvalidApiKey() throws Exception {
         String json = """
                 {
-                    "name": "TestPlayer",
-                    "message": "Hello, world!"
+                    "messages": [],
+                    "lastTimestamp": 0
                 }
                 """;
 
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/minecraft/chat")
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/minecraft/message-sync")
                         .header("X-API-KEY", "wrong-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))

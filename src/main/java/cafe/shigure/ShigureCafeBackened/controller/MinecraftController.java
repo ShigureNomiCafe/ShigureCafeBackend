@@ -1,6 +1,8 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
 import cafe.shigure.ShigureCafeBackened.dto.ChatMessageRequest;
+import cafe.shigure.ShigureCafeBackened.dto.ChatMessageResponse;
+import cafe.shigure.ShigureCafeBackened.dto.ChatSyncRequest;
 import cafe.shigure.ShigureCafeBackened.dto.MinecraftWhitelistResponse;
 import cafe.shigure.ShigureCafeBackened.service.MinecraftService;
 import cafe.shigure.ShigureCafeBackened.service.UserService;
@@ -24,9 +26,8 @@ public class MinecraftController {
         return ResponseEntity.ok(userService.getMinecraftWhitelist());
     }
 
-    @PostMapping("/chat")
-    public ResponseEntity<Void> pushChatMessage(@Valid @RequestBody ChatMessageRequest request) {
-        minecraftService.saveChatMessage(request);
-        return ResponseEntity.ok().build();
+    @PostMapping("/message-sync")
+    public ResponseEntity<List<ChatMessageResponse>> syncChatMessages(@Valid @RequestBody ChatSyncRequest request) {
+        return ResponseEntity.ok(minecraftService.syncChatMessages(request));
     }
 }
