@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -113,5 +114,29 @@ public class MinecraftControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    public void testGetChatMessages() throws Exception {
+        // Save some messages
+        cafe.shigure.ShigureCafeBackened.model.ChatMessage msg1 = new cafe.shigure.ShigureCafeBackened.model.ChatMessage();
+        msg1.setName("Player1");
+        msg1.setMessage("Msg 1");
+        msg1.setTimestamp(System.currentTimeMillis() - 1000);
+        chatMessageRepository.save(msg1);
+
+        cafe.shigure.ShigureCafeBackened.model.ChatMessage msg2 = new cafe.shigure.ShigureCafeBackened.model.ChatMessage();
+        msg2.setName("Player2");
+        msg2.setMessage("Msg 2");
+        msg2.setTimestamp(System.currentTimeMillis());
+        chatMessageRepository.save(msg2);
+
+        mockMvc.perform(get("/api/v1/minecraft/chat")
+                        .with(user("testuser").authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("USER"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].name").value("Player2"))
+                .andExpect(jsonPath("$.content[1].name").value("Player1"));
     }
 }

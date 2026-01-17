@@ -1,14 +1,17 @@
 package cafe.shigure.ShigureCafeBackened.controller;
 
-import cafe.shigure.ShigureCafeBackened.dto.ChatMessageRequest;
-import cafe.shigure.ShigureCafeBackened.dto.ChatMessageResponse;
-import cafe.shigure.ShigureCafeBackened.dto.ChatSyncRequest;
-import cafe.shigure.ShigureCafeBackened.dto.MinecraftWhitelistResponse;
+import cafe.shigure.ShigureCafeBackened.annotation.RateLimit;
+import cafe.shigure.ShigureCafeBackened.dto.*;
+import cafe.shigure.ShigureCafeBackened.model.User;
 import cafe.shigure.ShigureCafeBackened.service.MinecraftService;
 import cafe.shigure.ShigureCafeBackened.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +27,14 @@ public class MinecraftController {
     @GetMapping("/whitelist")
     public ResponseEntity<List<MinecraftWhitelistResponse>> getWhitelist() {
         return ResponseEntity.ok(userService.getMinecraftWhitelist());
+    }
+
+    @GetMapping("/chat")
+    @RateLimit(key = "minecraft:chat", expression = "#currentUser.id", milliseconds = 500)
+    public ResponseEntity<PagedResponse<ChatMessageResponse>> getChatMessages(
+            @PageableDefault(size = 50, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(minecraftService.getChatMessages(pageable));
     }
 
     @PostMapping("/message-sync")

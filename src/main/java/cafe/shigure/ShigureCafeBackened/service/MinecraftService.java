@@ -3,9 +3,12 @@ package cafe.shigure.ShigureCafeBackened.service;
 import cafe.shigure.ShigureCafeBackened.dto.ChatMessageRequest;
 import cafe.shigure.ShigureCafeBackened.dto.ChatMessageResponse;
 import cafe.shigure.ShigureCafeBackened.dto.ChatSyncRequest;
+import cafe.shigure.ShigureCafeBackened.dto.PagedResponse;
 import cafe.shigure.ShigureCafeBackened.model.ChatMessage;
 import cafe.shigure.ShigureCafeBackened.repository.ChatMessageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +27,14 @@ public class MinecraftService {
     private final RedisTemplate<String, Object> redisTemplate;
     private static final String CHAT_CACHE_KEY = "minecraft:chat:latest";
     private static final int CACHE_SIZE = 100;
+
+    @Transactional(readOnly = true)
+    public PagedResponse<ChatMessageResponse> getChatMessages(Pageable pageable) {
+        Page<ChatMessage> page = chatMessageRepository.findAll(pageable);
+        return PagedResponse.fromPage(page.map(entity -> new ChatMessageResponse(
+                entity.getId(), entity.getName(), entity.getMessage(), entity.getTimestamp()
+        )));
+    }
 
     @Transactional
     public List<ChatMessageResponse> syncChatMessages(ChatSyncRequest request) {
