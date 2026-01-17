@@ -36,8 +36,8 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/token", "/api/v1/auth/2fa/verify", "/api/v1/auth/verification-codes", "/api/v1/auth/password-reset").permitAll()
+                .requestMatchers("/ws/minecraft/chat").permitAll()
                 .requestMatchers("/api/v1/minecraft/whitelist").hasAnyAuthority("ADMIN", "API_CLIENT")
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/minecraft/chat-sync").hasAnyAuthority("ADMIN", "API_CLIENT")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/minecraft/chat").authenticated()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/registrations").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/registrations").hasAuthority("ADMIN")
