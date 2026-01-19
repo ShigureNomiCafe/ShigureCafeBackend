@@ -1,0 +1,76 @@
+services:
+  cafe_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # 数据库连接
+      - DB_URL=jdbc:mariadb://cafe_db:3306/shigure_cafe?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+      - DB_USER=cafe
+      - DB_PASSWORD=${DB_PASSWORD}
+      # Redis 连接
+      - REDIS_HOST=cafe_redis
+      - REDIS_PORT=6379
+      - REDIS_USERNAME=default
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      # 外部服务配置
+      - MAIL_TENANT_ID=${MAIL_TENANT_ID}
+      - MAIL_CLIENT_ID=${MAIL_CLIENT_ID}
+      - MAIL_CLIENT_SECRET=${MAIL_CLIENT_SECRET}
+      - MINECRAFT_TENANT_ID=${MINECRAFT_TENANT_ID}
+      - MINECRAFT_CLIENT_ID=${MINECRAFT_CLIENT_ID}
+      - MINECRAFT_CLIENT_SECRET=${MINECRAFT_CLIENT_SECRET}
+      - MAIL_FROM=${MAIL_FROM}
+      - API_KEY=${API_KEY}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL}
+      - S3_REGION=${S3_REGION}
+    depends_on:
+      cafe_db:
+        condition: service_healthy
+      cafe_redis:
+        condition: service_started
+    networks:
+      - cafe-net
+    restart: always
+
+  cafe_db:
+    image: mariadb:12.1.2
+    environment:
+      - MARIADB_DATABASE=shigure_cafe
+      - MARIADB_USER=cafe
+      - MARIADB_PASSWORD=${DB_PASSWORD}
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - TZ=UTC
+    volumes:
+      - cafe_mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - cafe-net
+    restart: always
+
+  cafe_redis:
+    image: redis:8.4.0-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - cafe_redis_data:/data
+    networks:
+      - cafe-net
+    restart: always
+
+networks:
+  cafe-net:
+    driver: bridge
+
+volumes:
+  cafe_mariadb_data:
+  cafe_redis_data:

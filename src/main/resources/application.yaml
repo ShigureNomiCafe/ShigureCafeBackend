@@ -25,18 +25,18 @@ spring:
   
 application:
   mail:
-    from: noreply@shigure-nomi.shop
+    from: ${MAIL_FROM}
   microsoft:
     mail:
-      tenant-id: ${MAIL_TENANT_ID:${AZURE_TENANT_ID}}
-      client-id: ${MAIL_CLIENT_ID:${AZURE_CLIENT_ID}}
-      client-secret: ${MAIL_CLIENT_SECRET:${AZURE_CLIENT_SECRET}}
+      tenant-id: ${MAIL_TENANT_ID}
+      client-id: ${MAIL_CLIENT_ID}
+      client-secret: ${MAIL_CLIENT_SECRET}
     minecraft:
-      tenant-id: ${MINECRAFT_TENANT_ID:${AZURE_TENANT_ID}}
-      client-id: ${MINECRAFT_CLIENT_ID:${AZURE_CLIENT_ID}}
-      client-secret: ${MINECRAFT_CLIENT_SECRET:${AZURE_CLIENT_SECRET}}
+      tenant-id: ${MINECRAFT_TENANT_ID}
+      client-id: ${MINECRAFT_CLIENT_ID}
+      client-secret: ${MINECRAFT_CLIENT_SECRET}
   security:
-    api-key: ${API_KEY:shigure-cafe-secret-key}
+    api-key: ${API_KEY:cafe_api_key}
   s3:
     endpoint: ${S3_ENDPOINT:http://localhost:9000}
     access-key: ${S3_ACCESS_KEY:minioadmin}
