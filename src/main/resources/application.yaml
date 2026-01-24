@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: ShigureCafeBackened
+    name: ShigureCafeBackend
   datasource:
     url: ${DB_URL}
     username: ${DB_USER}

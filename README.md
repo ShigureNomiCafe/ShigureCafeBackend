@@ -51,7 +51,7 @@ The backend service for ShigureCafe, a robust and secure user management and soc
 ## Project Structure
 
 ```text
-src/main/java/cafe/shigure/ShigureCafeBackened/
+src/main/java/cafe/shigure/ShigureCafeBackend/
 ├── annotation/         # Custom annotations (e.g., @RateLimit)
 ├── aspect/             # AOP aspects for cross-cutting concerns
 ├── config/             # Security, JWT, S3, and App configurations
