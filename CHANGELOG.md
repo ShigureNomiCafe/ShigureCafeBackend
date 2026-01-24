@@ -1,5 +1,17 @@
 # Changelog
 
+## [v1.1.1] - 2026-01-24
+
+### Added
+- Added `TURNSTILE_SECRET_KEY` environment variable support in `docker-compose.yml`.
+
+### Changed
+- Refactored service dependencies to improve maintainability.
+- Enhanced user audit logic for better workflow reliability.
+
+### Fixed
+- Fixed a typo in the project package name (renamed `ShigureCafeBackened` to `ShigureCafeBackend`).
+
 ## [v1.1.0] - 2026-01-24
 
 ### Added
