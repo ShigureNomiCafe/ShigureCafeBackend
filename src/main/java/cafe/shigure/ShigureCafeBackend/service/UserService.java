@@ -60,7 +60,7 @@ public class UserService {
         String code = String.format("%06d", new Random().nextInt(999999));
         String codeKey = "verify:code:" + email;
 
-        rateLimitService.checkRateLimit("verify:" + email, 60000);
+        rateLimitService.checkRateLimit("verify:" + email, 1, 60000, 1);
 
         redisTemplate.opsForValue().set(codeKey, code, 5, TimeUnit.MINUTES);
 

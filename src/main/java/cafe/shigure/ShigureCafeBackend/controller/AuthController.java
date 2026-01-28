@@ -21,7 +21,7 @@ public class AuthController {
     private final TurnstileService turnstileService;
 
     @PostMapping("/token")
-    @RateLimit(key = "login", useIp = true, milliseconds = 1000)
+    @RateLimit(key = "login", useIp = true, period = 10000, capacity = 5)
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
         if (!turnstileService.verifyToken(request.getTurnstileToken())) {
             throw new BusinessException("INVALID_CAPTCHA");
@@ -35,6 +35,7 @@ public class AuthController {
     }
 
     @PostMapping("/password-reset")
+    @RateLimit(key = "password-reset", expression = "#request.email", period = 600000, capacity = 3)
     public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
         if (!turnstileService.verifyToken(request.getTurnstileToken())) {
             throw new BusinessException("INVALID_CAPTCHA");
@@ -50,6 +51,7 @@ public class AuthController {
     }
 
     @PostMapping("/verification-codes")
+    @RateLimit(key = "verification-code", expression = "#request.email", period = 60000)
     public ResponseEntity<Void> sendCode(@RequestBody EmailRequest request) {
         if (!turnstileService.verifyToken(request.turnstileToken())) {
             throw new BusinessException("INVALID_CAPTCHA");

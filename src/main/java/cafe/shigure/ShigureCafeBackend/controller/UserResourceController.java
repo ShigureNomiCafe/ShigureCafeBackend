@@ -42,7 +42,7 @@ public class UserResourceController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('ADMIN')")
-    @RateLimit(key = "users:list", expression = "#currentUser.id", milliseconds = 500)
+    @RateLimit(key = "users:list", expression = "#currentUser.id", period = 500, capacity = 10)
     public ResponseEntity<PagedResponse<UserResponse>> getUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -78,6 +78,7 @@ public class UserResourceController {
 
     @PutMapping("/{username}/password")
     @PreAuthorize("hasAuthority('ADMIN') or #username == authentication.name")
+    @RateLimit(key = "users:password", expression = "#username", period = 60000, capacity = 3)
     public ResponseEntity<Void> changePassword(@PathVariable String username,
             @RequestBody ChangePasswordRequest request,
             @AuthenticationPrincipal User currentUser) {
@@ -95,6 +96,7 @@ public class UserResourceController {
 
     @PutMapping("/{username}/email")
     @PreAuthorize("hasAuthority('ADMIN') or #username == authentication.name")
+    @RateLimit(key = "users:email", expression = "#username", period = 60000, capacity = 3)
     public ResponseEntity<Void> updateEmail(@PathVariable String username,
             @RequestBody UpdateEmailRequest request,
             @AuthenticationPrincipal User currentUser) {
@@ -149,6 +151,7 @@ public class UserResourceController {
 
     @PutMapping("/{username}/2fa")
     @PreAuthorize("#username == authentication.name")
+    @RateLimit(key = "users:2fa:toggle", expression = "#username", period = 60000, capacity = 5)
     public ResponseEntity<Void> toggleTwoFactor(@PathVariable String username,
             @RequestBody ToggleTwoFactorRequest request,
             @AuthenticationPrincipal User currentUser) {
@@ -165,6 +168,7 @@ public class UserResourceController {
 
     @PostMapping("/{username}/2fa/totp/confirm")
     @PreAuthorize("#username == authentication.name")
+    @RateLimit(key = "users:2fa:confirm", expression = "#username", period = 60000, capacity = 5)
     public ResponseEntity<Void> confirmTotp(@PathVariable String username,
             @RequestBody ConfirmTotpRequest request,
             @AuthenticationPrincipal User currentUser) {
@@ -195,6 +199,7 @@ public class UserResourceController {
 
     @PostMapping("/{username}/minecraft/bind")
     @PreAuthorize("#username == authentication.name")
+    @RateLimit(key = "users:minecraft:bind", expression = "#username", period = 60000, capacity = 2)
     public ResponseEntity<Void> bindMinecraft(@PathVariable String username,
             @RequestBody BindMinecraftRequest request,
             @AuthenticationPrincipal User currentUser) {
@@ -206,6 +211,7 @@ public class UserResourceController {
 
     @PostMapping("/{username}/minecraft/refresh")
     @PreAuthorize("hasAuthority('ADMIN') or #username == authentication.name")
+    @RateLimit(key = "users:minecraft:refresh", expression = "#username", period = 60000, capacity = 2)
     public ResponseEntity<Void> refreshMinecraft(@PathVariable String username) {
         User targetUser = userService.getUserByUsername(username);
         userService.refreshMinecraftUsername(targetUser.getId(), minecraftAuthService);
@@ -214,7 +220,7 @@ public class UserResourceController {
 
     @PostMapping("/{username}/avatar")
     @PreAuthorize("#username == authentication.name")
-    @RateLimit(key = "users:avatar", expression = "#currentUser.id", milliseconds = 5000)
+    @RateLimit(key = "users:avatar", expression = "#username", period = 60000, capacity = 3)
     public ResponseEntity<Map<String, String>> uploadAvatar(@PathVariable String username,
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal User currentUser) {

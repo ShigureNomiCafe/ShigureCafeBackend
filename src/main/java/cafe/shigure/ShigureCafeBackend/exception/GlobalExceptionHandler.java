@@ -19,6 +19,10 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(ErrorResponse.of(e.getCode(), e.getMetadata()));
         }
+        if ("INVALID_AUDIT_CODE".equals(e.getCode())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ErrorResponse.of(e.getCode(), e.getMetadata()));
+        }
         return ResponseEntity.badRequest().body(ErrorResponse.of(e.getCode(), e.getMetadata()));
     }
 

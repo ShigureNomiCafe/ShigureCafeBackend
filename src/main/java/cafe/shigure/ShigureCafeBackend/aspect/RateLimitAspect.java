@@ -52,7 +52,12 @@ public class RateLimitAspect {
             }
         }
 
-        rateLimitService.checkRateLimit(key.toString(), rateLimit.milliseconds());
+        rateLimitService.checkRateLimit(
+                key.toString(),
+                rateLimit.capacity(),
+                rateLimit.period(),
+                rateLimit.tokens()
+        );
     }
 
     private String resolveExpression(JoinPoint joinPoint, String expressionStr) {

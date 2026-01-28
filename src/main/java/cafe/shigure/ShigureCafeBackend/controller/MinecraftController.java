@@ -30,7 +30,7 @@ public class MinecraftController {
     }
 
     @GetMapping("/chat")
-    @RateLimit(key = "minecraft:chat", expression = "#currentUser.id", milliseconds = 500)
+    @RateLimit(key = "minecraft:chat", expression = "#currentUser.id", period = 500, capacity = 10)
     public ResponseEntity<PagedResponse<ChatMessageResponse>> getChatMessages(
             @PageableDefault(size = 50, sort = "timestamp", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal User currentUser) {

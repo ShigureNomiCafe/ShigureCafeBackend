@@ -32,7 +32,7 @@ public class RegistrationController {
     private final TurnstileService turnstileService;
 
     @PostMapping
-    @RateLimit(key = "register", useIp = true, milliseconds = 5000)
+    @RateLimit(key = "register", useIp = true, period = 300000, capacity = 3)
     public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest request) {
         if (!turnstileService.verifyToken(request.getTurnstileToken())) {
             throw new BusinessException("INVALID_CAPTCHA");
@@ -44,7 +44,7 @@ public class RegistrationController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('ADMIN')")
-    @RateLimit(key = "audits:list", expression = "#currentUser.id", milliseconds = 500)
+    @RateLimit(key = "audits:list", expression = "#currentUser.id", period = 500, capacity = 10)
     public ResponseEntity<PagedResponse<RegistrationDetailsResponse>> getAllRegistrations(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,

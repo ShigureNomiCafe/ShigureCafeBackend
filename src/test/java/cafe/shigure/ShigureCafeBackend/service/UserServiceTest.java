@@ -67,7 +67,7 @@ class UserServiceTest {
 
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
         doThrow(new BusinessException("RATE_LIMIT_EXCEEDED"))
-            .when(rateLimitService).checkRateLimit(eq("verify:" + email), anyLong());
+            .when(rateLimitService).checkRateLimit(eq("verify:" + email), anyLong(), anyLong(), anyLong());
 
         assertThrows(BusinessException.class, () -> userService.sendVerificationCode(email, "REGISTER"));
         
@@ -82,7 +82,7 @@ class UserServiceTest {
 
         userService.sendVerificationCode(email, "REGISTER");
 
-        verify(rateLimitService).checkRateLimit(eq("verify:" + email), anyLong());
+        verify(rateLimitService).checkRateLimit(eq("verify:" + email), eq(1L), eq(60000L), eq(1L));
         verify(emailService).sendSimpleMessage(eq(email), any(), any());
         verify(valueOperations).set(eq("verify:code:" + email), anyString(), eq(5L), eq(TimeUnit.MINUTES));
     }
@@ -95,7 +95,7 @@ class UserServiceTest {
 
         userService.sendVerificationCode(email, "REGISTER");
 
-        verify(rateLimitService).checkRateLimit(eq("verify:" + email), anyLong());
+        verify(rateLimitService).checkRateLimit(eq("verify:" + email), eq(1L), eq(60000L), eq(1L));
         verify(emailService).sendSimpleMessage(eq(email), any(), any());
         verify(valueOperations).set(eq("verify:code:" + email), anyString(), eq(5L), eq(TimeUnit.MINUTES));
     }

@@ -14,7 +14,17 @@ public @interface RateLimit {
     /**
      * Rate limit period in milliseconds.
      */
-    long milliseconds() default 1000;
+    long period() default 1000;
+
+    /**
+     * Capacity of the bucket.
+     */
+    long capacity() default 1;
+
+    /**
+     * Tokens consumed per request.
+     */
+    long tokens() default 1;
 
     /**
      * SpEL expression to generate dynamic key.

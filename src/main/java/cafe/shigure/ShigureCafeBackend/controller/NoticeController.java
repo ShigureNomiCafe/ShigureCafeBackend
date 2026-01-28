@@ -26,7 +26,7 @@ public class NoticeController {
     private final RateLimitService rateLimitService;
 
     @GetMapping
-    @RateLimit(key = "notices:list", expression = "#currentUser.id", milliseconds = 500)
+    @RateLimit(key = "notices:list", expression = "#currentUser.id", period = 500, capacity = 10)
     public ResponseEntity<PagedResponse<NoticeResponse>> getAllNotices(
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
