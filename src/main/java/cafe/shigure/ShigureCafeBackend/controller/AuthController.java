@@ -34,6 +34,11 @@ public class AuthController {
         return ResponseEntity.ok(userService.verify2FA(request.username(), request.code()));
     }
 
+    @GetMapping("/validate")
+    public ResponseEntity<Void> validateToken() {
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/password-reset")
     @RateLimit(key = "password-reset", expression = "#request.email", period = 600000, capacity = 3)
     public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
