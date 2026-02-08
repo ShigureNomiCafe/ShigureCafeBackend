@@ -11,15 +11,18 @@ import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import lombok.extern.slf4j.Slf4j;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -27,6 +30,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
@@ -39,6 +43,24 @@ public class UserService {
     private final TokenBlacklistRepository tokenBlacklistRepository;
     private final CacheService cacheService;
     private final RateLimitService rateLimitService;
+
+    @Value("${application.mail.verification.subject}")
+    private String verificationSubject;
+
+    @Value("${application.mail.verification.template-path}")
+    private String verificationTemplatePath;
+
+    @Value("${application.mail.verification.labels.register:账号注册}")
+    private String labelRegister;
+
+    @Value("${application.mail.verification.labels.update-email:更换邮箱}")
+    private String labelUpdateEmail;
+
+    @Value("${application.mail.verification.labels.reset-password:重置密码}")
+    private String labelResetPassword;
+
+    @Value("${application.mail.verification.labels.2fa:身份验证}")
+    private String label2fa;
 
     private final SecretGenerator totpSecretGenerator = new DefaultSecretGenerator();
     private final CodeVerifier totpVerifier = new DefaultCodeVerifier(
@@ -64,7 +86,22 @@ public class UserService {
 
         redisTemplate.opsForValue().set(codeKey, code, 5, TimeUnit.MINUTES);
 
-        emailService.sendSimpleMessage(email, "猫咖验证码", "您的验证码是：" + code + "，请在5分钟内使用。");
+        try {
+            String typeLabel = switch (type.toUpperCase()) {
+                case "REGISTER" -> labelRegister;
+                case "UPDATE_EMAIL" -> labelUpdateEmail;
+                case "RESET_PASSWORD" -> labelResetPassword;
+                case "2FA" -> label2fa;
+                default -> type;
+            };
+            String htmlContent = emailService.loadTemplate(verificationTemplatePath, Map.of(
+                    "code", code,
+                    "typeLabel", typeLabel));
+            emailService.sendHtmlMessage(email, verificationSubject, htmlContent);
+        } catch (Exception e) {
+            // Fallback to simple message if template fails
+            emailService.sendSimpleMessage(email, "猫咖验证码", "您的验证码是：" + code + "，请在5分钟内使用。");
+        }
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -507,6 +544,27 @@ public class UserService {
         cacheService.updateTimestamp(CacheService.USER_LIST_KEY);
     }
 
+    @Async
+    public void sendEmailNotificationToAllActiveUsers(String subject, String content) {
+        List<User> activeUsers = userRepository.findByStatus(UserStatus.ACTIVE);
+        log.info("Starting to send notification emails to {} active users. Subject: {}", activeUsers.size(), subject);
+
+        int successCount = 0;
+        int failureCount = 0;
+
+        for (User user : activeUsers) {
+            try {
+                emailService.sendSimpleMessage(user.getEmail(), subject, content);
+                successCount++;
+            } catch (Exception e) {
+                log.error("Failed to send notification email to {}: {}", user.getEmail(), e.getMessage());
+                failureCount++;
+            }
+        }
+
+        log.info("Finished sending notification emails. Success: {}, Failure: {}", successCount, failureCount);
+    }
+
     public List<MinecraftWhitelistResponse> getMinecraftWhitelist() {
         return userRepository.findByStatusAndMinecraftUuidIsNotNullAndMinecraftUsernameIsNotNull(UserStatus.ACTIVE)
                 .stream()
@@ -524,11 +582,8 @@ public class UserService {
         if (uuid.length() == 32) {
             return uuid.replaceFirst(
                     "(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})",
-                    "$1-$2-$3-$4-$5"
-            );
+                    "$1-$2-$3-$4-$5");
         }
         return uuid;
     }
 }
-
-    
