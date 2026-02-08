@@ -30,6 +30,14 @@ spring:
 application:
   mail:
     from: ${MAIL_FROM}
+    verification:
+      subject: "时雨和糯米的猫咖 - 验证码"
+      template-path: "templates/verification-code.html"
+      labels:
+        register: "账号注册"
+        update-email: "更换邮箱"
+        reset-password: "重置密码"
+        2fa: "身份验证"
   microsoft:
     mail:
       tenant-id: ${MAIL_TENANT_ID}

@@ -13,6 +13,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -23,13 +27,21 @@ public class EmailService {
     private String fromEmail;
 
     public void sendSimpleMessage(String to, String subject, String text) {
+        sendEmail(to, subject, text, BodyType.Text);
+    }
+
+    public void sendHtmlMessage(String to, String subject, String html) {
+        sendEmail(to, subject, html, BodyType.Html);
+    }
+
+    private void sendEmail(String to, String subject, String content, BodyType bodyType) {
         Message message = new Message();
         message.setSubject(subject);
 
         // 设置邮件内容
         ItemBody body = new ItemBody();
-        body.setContentType(BodyType.Text);
-        body.setContent(text);
+        body.setContentType(bodyType);
+        body.setContent(content);
         message.setBody(body);
 
         // 设置收件人
@@ -46,5 +58,14 @@ public class EmailService {
 
         // 直接通过 noreply 邮箱发送
         graphClient.users().byUserId(fromEmail).sendMail().post(sendMailPostRequestBody);
+    }
+
+    public String loadTemplate(String path, Map<String, String> variables) throws IOException {
+        var resource = new org.springframework.core.io.ClassPathResource(path);
+        String template = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        for (Map.Entry<String, String> entry : variables.entrySet()) {
+            template = template.replace("{{" + entry.getKey() + "}}", entry.getValue());
+        }
+        return template;
     }
 }
