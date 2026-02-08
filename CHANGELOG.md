@@ -1,5 +1,19 @@
 # Changelog
 
+## [v1.2.0] - 2026-02-08
+
+### Added
+- Added email notification system with Markdown support.
+- Added templates for email notifications and verification codes.
+- Added email notification endpoint for all active users.
+- Added token validation endpoint.
+- Integrated **Bucket4j** for enhanced rate limiting and security.
+
+### Changed
+- Refactored email service with better template management and configuration.
+- Simplified network definition to use root network in Docker configurations.
+- Renamed `API_KEY` to `CAFE_API_KEY` for consistency and updated database user configuration.
+
 ## [v1.1.1] - 2026-01-24
 
 ### Added

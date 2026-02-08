@@ -11,7 +11,7 @@ The backend service for ShigureCafe, a robust and secure user management and soc
     *   **Token Blacklisting:** Instant logout capability by blacklisting active JWTs.
     *   **Secure Passwords:** Strong hashing using BCrypt.
     *   **API Key Authentication:** Secure communication for internal plugins and services.
-    *   **Rate Limiting:** AOP-based rate limiting to prevent brute-force and spam.
+    *   **Rate Limiting:** Advanced rate limiting using **Bucket4j** and AOP to prevent brute-force and spam.
     *   **CAPTCHA Verification:** Integrated **Cloudflare Turnstile** for secure, user-friendly bot protection.
 *   **Minecraft Integration:**
     *   **Real-time Chat Sync:** WebSocket-based synchronization between the web frontend and Minecraft server.
@@ -19,6 +19,7 @@ The backend service for ShigureCafe, a robust and secure user management and soc
     *   **Whitelist Management:** Automated whitelist synchronization based on user audit status.
 *   **Notice Board System:**
     *   **Markdown & KaTeX Support:** Create rich, formatted notices with mathematical expressions.
+    *   **Email Notifications:** Send Markdown-formatted email notifications to active users when new notices are posted.
     *   **Notice Reaction System:** Users can react to announcements with a variety of emojis.
     *   **Pinned Notices:** Support for pinning important announcements to the top of the board.
 *   **Storage & Resources:**
@@ -27,7 +28,7 @@ The backend service for ShigureCafe, a robust and secure user management and soc
 *   **User Registration & Audit Workflow:**
     *   **Two-Stage Registration:** New users are created with a `PENDING` status.
     *   **Audit Code System:** Administrators generate unique audit codes to approve/activate users.
-    *   **Email Verification:** Integration with **Microsoft Graph API** for reliable email delivery.
+    *   **Email Verification:** Integration with **Microsoft Graph API** for reliable email delivery with HTML templates.
 *   **Architecture & Reliability:**
     *   **Global Exception Handling:** Standardized error responses.
     *   **Database Migrations:** Managed by **Flyway** for reliable schema versioning.
