@@ -19,19 +19,26 @@ import java.time.Instant;
 public class LogController {
     private final LogService logService;
 
-    @GetMapping
+    @GetMapping("/latest")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Page<SystemLog>> getLogs(
+    public ResponseEntity<java.util.List<SystemLog>> getLatestLogs(
             @RequestParam(required = false) String level,
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "timestamp") String sortBy,
-            @RequestParam(defaultValue = "desc") String direction) {
-        
-        Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-        return ResponseEntity.ok(logService.getLogs(level, source, search, PageRequest.of(page, size, sort)));
+            @RequestParam(required = false) Long afterId,
+            @RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok(logService.getLogsAfter(level, source, search, afterId, limit));
+    }
+
+    @GetMapping("/older")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<java.util.List<SystemLog>> getOlderLogs(
+            @RequestParam(required = false) String level,
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false) String search,
+            @RequestParam Long beforeId,
+            @RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok(logService.getLogsBefore(level, source, search, beforeId, limit));
     }
 
     @PostMapping

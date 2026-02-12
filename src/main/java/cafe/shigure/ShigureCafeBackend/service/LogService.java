@@ -16,8 +16,22 @@ import java.time.Instant;
 public class LogService {
     private final SystemLogRepository systemLogRepository;
 
-    public Page<SystemLog> getLogs(String level, String source, String search, Pageable pageable) {
-        return systemLogRepository.findByFilters(level, source, search, pageable);
+    public java.util.List<SystemLog> getLogsAfter(String level, String source, String search, Long afterId, int limit) {
+        if (afterId == null) {
+            org.springframework.data.domain.Pageable limitPageable = org.springframework.data.domain.PageRequest.of(0, limit, org.springframework.data.domain.Sort.by("id").descending());
+            java.util.List<SystemLog> logs = systemLogRepository.findByFilters(level, source, search, limitPageable).getContent();
+            // We want latest logs, but in ASCENDING order for the frontend to append or display correctly in terminal view
+            java.util.List<SystemLog> mutableLogs = new java.util.ArrayList<>(logs);
+            java.util.Collections.reverse(mutableLogs);
+            return mutableLogs;
+        }
+        org.springframework.data.domain.Pageable limitPageable = org.springframework.data.domain.PageRequest.of(0, limit, org.springframework.data.domain.Sort.by("id").ascending());
+        return systemLogRepository.findByFiltersAndIdGreaterThan(level, source, search, afterId, limitPageable);
+    }
+
+    public java.util.List<SystemLog> getLogsBefore(String level, String source, String search, Long beforeId, int limit) {
+        org.springframework.data.domain.Pageable limitPageable = org.springframework.data.domain.PageRequest.of(0, limit, org.springframework.data.domain.Sort.by("id").descending());
+        return systemLogRepository.findByFiltersAndIdLessThan(level, source, search, beforeId, limitPageable);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
